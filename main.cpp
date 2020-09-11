@@ -9,6 +9,7 @@
 static bool has_error = false;
 
 void error(int line, std::string message);
+void error(Token token, std::string message);
 void report(int line, std::string where, std::string message);
 void run_file(const char *);
 void run_prompt();
@@ -16,15 +17,17 @@ void run(std::string&);
 
 int main(int argc, char** argv)
 {
-    Expr expression = new Binary(
-    new Unary(
-        Token(TokenType::MINUS, "-", NULL, 1),
-        new Literal(123)),
-    Token(TokenType::STAR, "*", NULL, 1),
-    new Grouping(
-        new Literal(45.67)));
-    
-    std::cout<< printAST(expression) << std::endl;
+//    Expr expression = new Binary(
+//    new Unary(
+//        Token(TokenType::MINUS, "-", NULL, 1),
+//        new Literal(123)),
+//    Token(TokenType::STAR, "*", NULL, 1),
+//    new Grouping(
+//        new Literal(45.67)));
+//
+//    std::cout<< printAST(expression) << std::endl;
+//
+//    deleteAST(expression);
     
 	if (argc > 2)
 	{
@@ -45,6 +48,14 @@ int main(int argc, char** argv)
 void error(int line, std::string message)
 {
     report(line, "", message);
+}
+
+void error(Token token, std::string message)
+{
+    if (token.type == ENDOFFILE)
+        report(token.line, " at end", message);
+    else
+        report(token.line, "  at '" + token.lexeme + "'", message);
 }
 
 void report(int line, std::string where, std::string message)
@@ -94,9 +105,15 @@ void run(std::string& source)
 {
     Lexer lex(source);
     std::vector<Token> tokens = lex.scan_tokens();
-    for(auto& token : tokens)
-    {
-        std::cout << token << "\n";
-    }
+    Parser parser(tokens);
+    Expr expression = parser.parse();
+    if (has_error) return;
+    
+    std::cout<< printAST(expression) << std::endl;
+    
+//    for(auto& token : tokens)
+//    {
+//        std::cout << token << "\n";
+//    }
 }
 

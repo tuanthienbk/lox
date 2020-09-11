@@ -68,9 +68,9 @@ struct Grouping
 
 struct Literal
 {
-    Literal ( literal_t value_ ) : value ( value_ )
+    Literal ( nullable_literal value_ ) : value ( value_ )
     {}
-    literal_t value;
+    nullable_literal value;
 };
 
 struct Unary
@@ -136,4 +136,184 @@ std::string printAST(Expr expr)
         }
     }, expr);
 }
+
+void deleteAST(Expr expr)
+{
+    return std::visit(overloaded {
+        [](const Binary* expr)
+        {
+            deleteAST(expr->left);
+            deleteAST(expr->right);
+            delete expr;
+        },
+        [](const Grouping* expr)
+        {
+            deleteAST(expr->expression);
+            delete expr;
+        },
+        [](const Literal* expr)
+        {
+            delete expr;
+        },
+        [](const Unary* expr)
+        {
+            deleteAST(expr->right);
+            delete expr;
+        }
+    }, expr);
+}
+
+extern void error(Token token, std::string message);
+
+class Parser
+{
+public:
+    Parser(std::vector<Token> tokens) : m_tokens(std::move(tokens)) {}
+    
+    Expr parse()
+    {
+        try
+        {
+            return expression();
+        }
+        catch (ParseError error)
+        {
+            return (Binary*)NULL;
+        }
+    }
+    
+private:
+    Expr expression() { return equality(); }
+    
+    Expr equality()
+    {
+        Expr expr = comparison();
+        while (match({BANG_EQUAL, EQUAL_EQUAL}))
+        {
+            Token& op = previous();
+            Expr right = comparison();
+            expr = new Binary(expr, op, right);
+        }
+        return expr;
+    }
+    
+    Expr comparison()
+    {
+        Expr expr = addition();
+        while (match({GREATER, GREATER_EQUAL, LESS, LESS_EQUAL}))
+        {
+            Token& op = previous();
+            Expr right = addition();
+            expr = new Binary(expr, op, right);
+        }
+        return expr;
+    }
+    
+    Expr addition()
+    {
+        Expr expr = unary();
+        while (match({SLASH, STAR}))
+        {
+            Token& op = previous();
+            Expr right = unary();
+            expr = new Binary(expr, op, right);
+        }
+    }
+    
+    Expr unary()
+    {
+        if (match({BANG, MINUS}))
+        {
+            Token& op = previous();
+            Expr right = unary();
+            return new Unary(op, right);
+        }
+        return primary();
+    }
+    
+    Expr primary()
+    {
+        if (match({FALSE})) return new Literal(false);
+        if (match({TRUE})) return new Literal(true);
+        if (match({NIL})) return new Literal(std::nullopt);
+
+        if (match({NUMBER, STRING}))
+        {
+          return new Literal(previous().literal);
+        }
+
+        if (match({LEFT_PAREN}))
+        {
+          Expr expr = expression();
+          consume(RIGHT_PAREN, "Expect ')' after expression.");
+          return new Grouping(expr);
+        }
+        
+        throw error(peek(), "Expect expression.");
+    }
+    
+    Token consume(TokenType type, std::string msg)
+    {
+        if (check(type)) return advance();
+        throw error(peek(), msg);
+    }
+    
+    struct ParseError : public std::runtime_error
+    {
+        using base = std::runtime_error;
+        using base::base;
+    };
+    
+    ParseError error(Token token, std::string msg)
+    {
+        error(token, msg);
+        return ParseError("");
+    }
+    
+    
+    
+    bool match(std::initializer_list<TokenType> types)
+    {
+        for(const TokenType& type : types)
+        {
+            if (check(type))
+            {
+                advance();
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    bool check(const TokenType& type)
+    {
+        if (is_at_end()) return false;
+        return peek().type == type;
+    }
+    
+    Token advance()
+    {
+        if (!is_at_end()) m_current++;
+        return previous();
+    }
+    
+    bool is_at_end()
+    {
+        return peek().type = ENDOFFILE;
+    }
+    
+    Token& peek()
+    {
+        return m_tokens[m_current];
+    }
+    
+    Token& previous()
+    {
+        return m_tokens[m_current - 1];
+    }
+
+private:
+    std::vector<Token> m_tokens;
+    int m_current = 0;
+};
 

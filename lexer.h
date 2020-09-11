@@ -110,7 +110,7 @@ std::vector<std::string> TokenString =
     "EOF"
 };
 
-using literal_t = std::variant<double, std::string>;
+using literal_t = std::variant<double, bool, std::string>;
 using nullable_literal = std::optional<literal_t>;
 
 std::string literal_to_string(literal_t literal)
