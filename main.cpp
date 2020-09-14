@@ -4,6 +4,7 @@
 
 #include "lexer.h"
 #include "parser.h"
+#include "interpreter.h"
 
 
 static bool has_error = false;
