@@ -33,6 +33,28 @@ struct RuntimError : public std::runtime_error
     }
 };
 
+std::string stringify(nullable_literal literal)
+{
+    if (literal == std::nullopt) return "nil";
+    
+    if (auto doublevalueptr = std::get_if<double>(&literal.value()))
+    {
+        double doublevalue = *doublevalueptr;
+        if (doublevalue == std::floor(doublevalue))
+            return std::to_string((int)doublevalue);
+        else
+            return std::to_string(doublevalue);
+    }
+    else if (auto boolvalueptr = std::get_if<bool>(&literal.value()))
+    {
+        if(*boolvalueptr) return "true"; else return "false";
+    }
+    else
+    {
+        return std::get<std::string>(literal.value());
+    }
+}
+
 nullable_literal evaluate(Expr expr)
 {
     return std::visit(overloaded {
@@ -138,7 +160,7 @@ nullable_literal evaluate(Expr expr)
         },
         [](const Literal* expr) -> nullable_literal
         {
-            delete expr;
+            return expr->value;
         },
         [](const Unary* expr) -> nullable_literal
         {
@@ -146,7 +168,12 @@ nullable_literal evaluate(Expr expr)
             switch (expr->op.type)
             {
                 case MINUS:
-                    return -std::get<double>(right.value());
+                {
+                    if (auto vptr = std::get_if<double>(&right.value()))
+                        return -(*vptr);
+                    else
+                        throw RuntimError(expr->op, "Operand must be number");
+                }
                 case BANG:
                     return !is_truthy(right);
                 default:
@@ -154,5 +181,20 @@ nullable_literal evaluate(Expr expr)
             }
         }
     }, expr);
+}
+
+extern void runtime_error(RuntimError error);
+
+void interpret(Expr expression)
+{
+    try
+    {
+        nullable_literal result = evaluate(expression);
+        std::cout << stringify(result) << "\n";
+    }
+    catch (RuntimError error)
+    {
+        runtime_error(error);
+    }
 }
 

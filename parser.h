@@ -212,6 +212,18 @@ private:
     
     Expr addition()
     {
+        Expr expr = multiplication();
+        while (match({MINUS, PLUS}))
+        {
+            Token& op = previous();
+            Expr right = multiplication();
+            expr = new Binary(expr, op, right);
+        }
+        return expr;
+    }
+    
+    Expr multiplication()
+    {
         Expr expr = unary();
         while (match({SLASH, STAR}))
         {
@@ -219,6 +231,7 @@ private:
             Expr right = unary();
             expr = new Binary(expr, op, right);
         }
+        return expr;
     }
     
     Expr unary()
@@ -300,7 +313,7 @@ private:
     
     bool is_at_end()
     {
-        return peek().type = ENDOFFILE;
+        return peek().type == ENDOFFILE;
     }
     
     Token& peek()

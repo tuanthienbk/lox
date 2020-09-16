@@ -8,10 +8,12 @@
 
 
 static bool has_error = false;
+static bool has_runtime_error = false;
 
 void error(int line, std::string message);
 void error(Token token, std::string message);
 void report(int line, std::string where, std::string message);
+void runtime_error(RuntimError error);
 void run_file(const char *);
 void run_prompt();
 void run(std::string&);
@@ -57,6 +59,12 @@ void error(Token token, std::string message)
         report(token.line, " at end", message);
     else
         report(token.line, "  at '" + token.lexeme + "'", message);
+}
+
+void runtime_error(RuntimError error)
+{
+    std::cout << error.what() << "\n[line " << error.token.line << "]";
+    has_runtime_error = true;
 }
 
 void report(int line, std::string where, std::string message)
@@ -108,13 +116,11 @@ void run(std::string& source)
     std::vector<Token> tokens = lex.scan_tokens();
     Parser parser(tokens);
     Expr expression = parser.parse();
-    if (has_error) return;
+    if (has_error) exit(65);
+    Binary * binary = std::get<Binary*>(expression);
+    //std::cout<< printAST(expression) << std::endl;
+    interpret(expression);
     
-    std::cout<< printAST(expression) << std::endl;
-    
-//    for(auto& token : tokens)
-//    {
-//        std::cout << token << "\n";
-//    }
+    if (has_runtime_error) exit(70);
 }
 
