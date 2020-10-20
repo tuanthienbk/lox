@@ -8,8 +8,12 @@
 #include <cctype>
 #include <unordered_map>
 
-extern void error(int line, std::string message);
-extern void report(int line, std::string where, std::string message);
+#include "error.h"
+
+void error(int line, const std::string& message)
+{
+    report(line, "", message);
+}
 
 enum TokenType {
   // Single-character tokens.
@@ -161,6 +165,15 @@ struct Token
     }
 };
 
+struct RuntimeError : public std::runtime_error
+{
+    using base = std::runtime_error;
+    Token token;
+    RuntimeError(Token t, const std::string& msg) : token(t), base(msg)
+    {
+    }
+};
+
 class Lexer
 {
 public:
@@ -204,7 +217,7 @@ private:
     void add_token(TokenType type) { add_token(type, std::nullopt); }
     void add_token(TokenType type, nullable_literal literal)
     {
-        std::string str = m_source.substr(m_start, m_current);
+        std::string str = m_source.substr(m_start, m_current - m_start);
         m_tokens.emplace_back(type, str, literal, m_line);
     }
     bool match(char expected) // conditional advance
@@ -240,7 +253,7 @@ private:
             return;
         }
         advance();
-        nullable_literal value = m_source.substr(m_start, m_current - 1);
+        nullable_literal value = m_source.substr(m_start + 1, m_current - m_start - 2);
         add_token(STRING, value);
     }
     
@@ -254,17 +267,19 @@ private:
             while (std::isdigit(peek()))
                 advance();
         }
-        add_token(NUMBER, std::stod(m_source.substr(m_start, m_current)));
+        add_token(NUMBER, std::stod(m_source.substr(m_start, m_current - m_start)));
     }
     
     void identifier()
     {
         auto isalphanummeric = [](char c) -> bool { return std::isdigit(c) || std::isalpha(c); };
         while (isalphanummeric(peek())) advance();
-        std::string str = m_source.substr(m_start, m_current);
+        std::string str = m_source.substr(m_start, m_current - m_start);
         auto& kw = keywords();
         if (kw.find(str) == kw.end())
             add_token(IDENTIFIER);
+        else
+            add_token(kw[str]);
     }
     
 private:

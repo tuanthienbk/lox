@@ -6,14 +6,6 @@
 #include "parser.h"
 #include "interpreter.h"
 
-
-static bool has_error = false;
-static bool has_runtime_error = false;
-
-void error(int line, std::string message);
-void error(Token token, std::string message);
-void report(int line, std::string where, std::string message);
-void runtime_error(RuntimError error);
 void run_file(const char *);
 void run_prompt();
 void run(std::string&);
@@ -48,30 +40,7 @@ int main(int argc, char** argv)
 	return 0;
 }
 
-void error(int line, std::string message)
-{
-    report(line, "", message);
-}
 
-void error(Token token, std::string message)
-{
-    if (token.type == ENDOFFILE)
-        report(token.line, " at end", message);
-    else
-        report(token.line, "  at '" + token.lexeme + "'", message);
-}
-
-void runtime_error(RuntimError error)
-{
-    std::cout << error.what() << "\n[line " << error.token.line << "]";
-    has_runtime_error = true;
-}
-
-void report(int line, std::string where, std::string message)
-{
-    std::cout << "[line " << line << "] Error" << where << ": " << message << "\n";
-    has_error = true;
-}
 
 std::string read_all_bytes(const char * filename)
 {
@@ -105,6 +74,7 @@ void run_prompt()
         std::string line;
         if (!std::getline(std::cin, line))
             break;
+        std::cout << line << std::endl;
         run(line);
     }
     std::cout << std::endl;
@@ -115,11 +85,12 @@ void run(std::string& source)
     Lexer lex(source);
     std::vector<Token> tokens = lex.scan_tokens();
     Parser parser(tokens);
-    Expr expression = parser.parse();
+    std::vector<Stmt> statements = parser.parse();
     if (has_error) exit(65);
-    Binary * binary = std::get<Binary*>(expression);
+//    Binary * binary = std::get<Binary*>(expression);
     //std::cout<< printAST(expression) << std::endl;
-    interpret(expression);
+    Interpreter interpreter;
+    interpreter.interpret(statements);
     
     if (has_runtime_error) exit(70);
 }

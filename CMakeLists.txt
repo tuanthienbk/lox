@@ -14,6 +14,8 @@ if(Boost_FOUND)
  endif()
 
 set(HEADERS
+    environment.h
+    error.h
 	lexer.h
 	parser.h
 	interpreter.h

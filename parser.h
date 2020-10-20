@@ -3,6 +3,9 @@
 #include <variant>
 #include <sstream>
 
+#include "lexer.h"
+
+
 //#include <boost/preprocessor/seq/for_each.hpp>
 //#include <boost/preprocessor/seq/for_each_i.hpp>
 //#include <boost/preprocessor/seq/variadic_seq_to_seq.hpp>
@@ -41,12 +44,21 @@
 //                    (Unary, (Token,op)(Expr,right))\
 //           )
 
+void report_error(const Token& token, const std::string& message)
+{
+    if (token.type == ENDOFFILE)
+        report(token.line, " at end", message);
+    else
+        report(token.line, "  at '" + token.lexeme + "'", message);
+}
+
 struct Binary;
 struct Grouping;
 struct Literal;
 struct Unary;
+struct Variable;
 
-using Expr = std::variant<Binary*, Grouping*, Literal*, Unary*>;
+using Expr = std::variant<Binary*, Grouping*, Literal*, Unary*, Variable*>;
 
 struct Binary
 {
@@ -81,7 +93,35 @@ struct Unary
     Expr right;
 };
 
+struct Variable
+{
+    Variable(Token name_): name(name_) {}
+    Token name;
+};
 
+struct ExpressionStmt;
+struct PrintStmt;
+struct VarStmt;
+using Stmt = std::variant<ExpressionStmt*, PrintStmt*, VarStmt*>;
+
+struct ExpressionStmt
+{
+    ExpressionStmt ( Expr expression_ ) : expression ( expression_ ) {}
+    Expr expression;
+};
+
+struct PrintStmt
+{
+    PrintStmt ( Expr expression_ ) : expression ( expression_ ) {}
+    Expr expression;
+};
+
+struct VarStmt
+{
+    VarStmt(Token name_, Expr expression_) : name(name_), initializer(expression_) {}
+    Token name;
+    Expr initializer;
+};
 
 // helper type for the visitor #4
 template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
@@ -133,6 +173,10 @@ std::string printAST(Expr expr)
         [](const Unary* expr)
         {
             return parenthesize(expr->op.lexeme, expr->right);
+        },
+        [](const Variable* expr)
+        {
+            return expr->name.lexeme;
         }
     }, expr);
 }
@@ -159,31 +203,100 @@ void deleteAST(Expr expr)
         {
             deleteAST(expr->right);
             delete expr;
+        },
+        [](const Variable* expr)
+        {
+            delete expr;
         }
     }, expr);
 }
-
-
-extern void error(Token token, std::string message);
 
 class Parser
 {
 public:
     Parser(std::vector<Token> tokens) : m_tokens(std::move(tokens)) {}
     
-    Expr parse()
+    std::vector<Stmt> parse()
     {
-        try
+        std::vector<Stmt> statements;
+        while (!is_at_end())
         {
-            return expression();
+            statements.push_back(declaration());
         }
-        catch (ParseError error)
-        {
-            return (Binary*)NULL;
-        }
+        return statements;
     }
     
 private:
+    Stmt declaration()
+    {
+        try {
+            if (match({VAR})) return var_declaration();
+            return statement();
+        } catch (ParseError) {
+            synchronize();
+            return (ExpressionStmt*)NULL;
+        }
+    }
+    
+    void synchronize()
+    {
+      advance();
+
+      while (!is_at_end())
+      {
+        if (previous().type == SEMICOLON) return;
+
+        switch (peek().type) {
+          case CLASS:
+          case FUN:
+          case VAR:
+          case FOR:
+          case IF:
+          case WHILE:
+          case PRINT:
+          case RETURN:
+            return;
+        }
+
+        advance();
+      }
+    }
+    
+    Stmt var_declaration()
+    {
+        Token name = consume(IDENTIFIER, "Expect variable name");
+        
+        Expr initializer = (Binary*)NULL;
+        if (match({EQUAL}))
+        {
+            initializer = expression();
+        }
+        consume(SEMICOLON, "Expect ';'");
+        return new VarStmt(name, initializer);
+    }
+    
+    Stmt statement()
+    {
+        if (match({PRINT}))
+            return print_statement();
+        else
+            return expression_statement();
+    }
+    
+    Stmt print_statement()
+    {
+        Expr value = expression();
+        consume(SEMICOLON, "Expect ';' after value.");
+        return new PrintStmt(value);
+    }
+    
+    Stmt expression_statement()
+    {
+        Expr value = expression();
+        consume(SEMICOLON, "Expect ';' after value.");
+        return new ExpressionStmt(value);
+    }
+    
     Expr expression() { return equality(); }
     
     Expr equality()
@@ -255,6 +368,11 @@ private:
         {
           return new Literal(previous().literal);
         }
+        
+        if (match({IDENTIFIER}))
+        {
+            return new Variable(previous());
+        }
 
         if (match({LEFT_PAREN}))
         {
@@ -266,7 +384,7 @@ private:
         throw error(peek(), "Expect expression.");
     }
     
-    Token consume(TokenType type, std::string msg)
+    Token consume(TokenType type, const std::string& msg)
     {
         if (check(type)) return advance();
         throw error(peek(), msg);
@@ -278,9 +396,9 @@ private:
         using base::base;
     };
     
-    ParseError error(Token token, std::string msg)
+    ParseError error(const Token& token, const std::string& msg)
     {
-        error(token, msg);
+        report_error(token, msg);
         return ParseError("");
     }
     
