@@ -58,6 +58,12 @@ void runtime_error(const RuntimeError& error)
 class Interpreter
 {
 public:
+    Interpreter() : m_environment(new Environment()) {}
+    ~Interpreter()
+    {
+        delete m_environment;
+    }
+    
     void interpret(const std::vector<Stmt>& statements)
     {
         try
@@ -96,14 +102,40 @@ private:
                 {
                     value = evaluate(stmt->initializer);
                 }
-                m_environment.define(stmt->name.lexeme, value);
+                m_environment->define(stmt->name.lexeme, value);
+            },
+            [this](const BlockSmt* stmt)
+            {
+                Environment current_env(m_environment);
+                execute_block(stmt->statements, &current_env);
             }
         }, statement);
+    }
+    
+    void execute_block(const std::vector<Stmt>& statements, Environment* env)
+    {
+        Environment* previous = m_environment;
+        try
+        {
+            m_environment = env;
+            for(auto& stmt : statements)
+                execute(stmt);
+        }
+        catch (...)
+        {
+        }
+        m_environment = previous;
     }
     
     nullable_literal evaluate(Expr expr)
     {
         return std::visit(overloaded {
+            [this](const Assign* expr) -> nullable_literal
+            {
+                nullable_literal value = evaluate(expr->value);
+                m_environment->assign(expr->name, value);
+                return value;
+            },
             [this](const Binary* expr) -> nullable_literal
             {
                 nullable_literal left = evaluate(expr->left);
@@ -228,12 +260,12 @@ private:
             },
             [this](const Variable* expr) -> nullable_literal
             {
-                return m_environment.get(expr->name);
+                return m_environment->get(expr->name);
             }
         }, expr);
     }
 
 
 private:
-    Environment m_environment;
+    Environment* m_environment;
 };

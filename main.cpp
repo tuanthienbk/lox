@@ -74,7 +74,7 @@ void run_prompt()
         std::string line;
         if (!std::getline(std::cin, line))
             break;
-        std::cout << line << std::endl;
+        //std::cout << line << std::endl;
         run(line);
     }
     std::cout << std::endl;

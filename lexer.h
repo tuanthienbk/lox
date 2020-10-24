@@ -204,6 +204,7 @@ public:
             {"super", SUPER},
             {"this", THIS},
             {"true", TRUE},
+            {"var", VAR},
             {"while", WHILE}
         };
         

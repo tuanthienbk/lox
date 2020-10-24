@@ -52,13 +52,23 @@ void report_error(const Token& token, const std::string& message)
         report(token.line, "  at '" + token.lexeme + "'", message);
 }
 
+struct Assign;
 struct Binary;
 struct Grouping;
 struct Literal;
 struct Unary;
 struct Variable;
 
-using Expr = std::variant<Binary*, Grouping*, Literal*, Unary*, Variable*>;
+using Expr = std::variant<Assign*, Binary*, Grouping*, Literal*, Unary*, Variable*>;
+
+struct Assign
+{
+    Assign (Token name_, Expr value_) : name ( name_ ), value ( value_ )
+    {}
+    
+    Token name;
+    Expr value;
+};
 
 struct Binary
 {
@@ -102,7 +112,8 @@ struct Variable
 struct ExpressionStmt;
 struct PrintStmt;
 struct VarStmt;
-using Stmt = std::variant<ExpressionStmt*, PrintStmt*, VarStmt*>;
+struct BlockSmt;
+using Stmt = std::variant<ExpressionStmt*, PrintStmt*, VarStmt*, BlockSmt*>;
 
 struct ExpressionStmt
 {
@@ -121,6 +132,12 @@ struct VarStmt
     VarStmt(Token name_, Expr expression_) : name(name_), initializer(expression_) {}
     Token name;
     Expr initializer;
+};
+
+struct BlockSmt
+{
+    BlockSmt(std::vector<Stmt>& statements_) : statements(statements_)  {}
+    std::vector<Stmt> statements;
 };
 
 // helper type for the visitor #4
@@ -158,6 +175,10 @@ std::string parenthesize(std::string name, Ts... exprs)
 std::string printAST(Expr expr)
 {
     return std::visit(overloaded {
+        [](const Assign* expr)
+        {
+            return std::string("");
+        },
         [](const Binary* expr)
         {
             return parenthesize(expr->op.lexeme, expr->left, expr->right);
@@ -184,6 +205,11 @@ std::string printAST(Expr expr)
 void deleteAST(Expr expr)
 {
     return std::visit(overloaded {
+        [](const Assign* expr)
+        {
+            deleteAST(expr->value);
+            delete expr;
+        },
         [](const Binary* expr)
         {
             deleteAST(expr->left);
@@ -279,8 +305,21 @@ private:
     {
         if (match({PRINT}))
             return print_statement();
+        else if (match({LEFT_BRACE}))
+            return block();
         else
             return expression_statement();
+    }
+    
+    Stmt block()
+    {
+        std::vector<Stmt> statements;
+        while (!check(RIGHT_BRACE) && !is_at_end())
+        {
+            statements.push_back(declaration());
+        }
+        consume(RIGHT_BRACE, "Expect '}' after block");
+        return new BlockSmt(statements);
     }
     
     Stmt print_statement()
@@ -297,7 +336,26 @@ private:
         return new ExpressionStmt(value);
     }
     
-    Expr expression() { return equality(); }
+    Expr expression() { return assignment(); }
+    
+    Expr assignment()
+    {
+        Expr expr = equality();
+
+        if (match({EQUAL}))
+        {
+            Token equals = previous();
+            Expr value = assignment();
+
+            if (auto vptr = std::get_if<Variable*>(&expr))
+            {
+                Token name = (*vptr)->name;
+                return new Assign(name, value);
+            }
+            error(equals, "Invalid assignment target.");
+        }
+        return expr;
+    }
     
     Expr equality()
     {
