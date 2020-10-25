@@ -16,6 +16,8 @@ if(Boost_FOUND)
 set(HEADERS
     environment.h
     error.h
+    expression.h
+    statement.h
 	lexer.h
 	parser.h
 	interpreter.h

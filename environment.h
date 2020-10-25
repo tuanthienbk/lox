@@ -8,7 +8,7 @@ class Environment
 {
 public:
     Environment() : enclosing(NULL) {}
-    Environment(Environment* enclosing_) : enclosing(enclosing) {}
+    Environment(Environment* enclosing_) : enclosing(enclosing_) {}
     
     void define(const std::string& name, nullable_literal value)
     {

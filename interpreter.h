@@ -10,7 +10,7 @@ bool is_truthy(nullable_literal literal)
     if (auto ptruth = std::get_if<bool>(&literal.value()))
         return *ptruth;
     else
-        return false;
+        return true;
 }
 
 bool is_equal(nullable_literal a, nullable_literal b)
@@ -97,17 +97,28 @@ private:
             },
             [this](const VarStmt* stmt)
             {
-                nullable_literal value = std::nullopt;
-                if (stmt)
-                {
-                    value = evaluate(stmt->initializer);
-                }
+                nullable_literal value = evaluate(stmt->initializer);
                 m_environment->define(stmt->name.lexeme, value);
+            },
+            [this](const IfStmt* stmt)
+            {
+                if (is_truthy(evaluate(stmt->condition)))
+                    execute(stmt->thenBranch);
+                else
+                    execute(stmt->thenBranch);
+            },
+            [this](const WhileStmt* stmt)
+            {
+                while (is_truthy(evaluate(stmt->condition)))
+                    execute(stmt->body);
             },
             [this](const BlockSmt* stmt)
             {
                 Environment current_env(m_environment);
                 execute_block(stmt->statements, &current_env);
+            },
+            [this](const std::nullptr_t stmt)
+            {
             }
         }, statement);
     }
@@ -124,6 +135,7 @@ private:
         catch (...)
         {
         }
+        //finally
         m_environment = previous;
     }
     
@@ -232,6 +244,21 @@ private:
                         return std::nullopt;
                 }
             },
+            [this](const Logical* expr) -> nullable_literal
+            {
+                nullable_literal left = evaluate(expr->left);
+                
+                if (expr->op.type == TokenType::OR)
+                {
+                  if (is_truthy(left)) return left;
+                }
+                else
+                {
+                  if (!is_truthy(left)) return left;
+                }
+
+                return evaluate(expr->right);
+            },
             [this](const Grouping* expr) -> nullable_literal
             {
                 return evaluate(expr->expression);
@@ -261,6 +288,11 @@ private:
             [this](const Variable* expr) -> nullable_literal
             {
                 return m_environment->get(expr->name);
+            }
+            ,
+            [this](const std::nullptr_t expr) -> nullable_literal
+            {
+                return std::nullopt;
             }
         }, expr);
     }

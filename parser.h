@@ -3,7 +3,7 @@
 #include <variant>
 #include <sstream>
 
-#include "lexer.h"
+#include "statement.h"
 
 
 //#include <boost/preprocessor/seq/for_each.hpp>
@@ -50,191 +50,6 @@ void report_error(const Token& token, const std::string& message)
         report(token.line, " at end", message);
     else
         report(token.line, "  at '" + token.lexeme + "'", message);
-}
-
-struct Assign;
-struct Binary;
-struct Grouping;
-struct Literal;
-struct Unary;
-struct Variable;
-
-using Expr = std::variant<Assign*, Binary*, Grouping*, Literal*, Unary*, Variable*>;
-
-struct Assign
-{
-    Assign (Token name_, Expr value_) : name ( name_ ), value ( value_ )
-    {}
-    
-    Token name;
-    Expr value;
-};
-
-struct Binary
-{
-    Binary ( Expr left_ , Token op_ , Expr right_ ) : left ( left_ ) , op ( op_ ) , right ( right_ )
-    {}
-    
-    Expr left;
-    Token op;
-    Expr right;
-    
-};
-
-struct Grouping
-{
-    Grouping ( Expr expression_ ) : expression ( expression_ )
-    {}
-    Expr expression;
-};
-
-struct Literal
-{
-    Literal ( nullable_literal value_ ) : value ( value_ )
-    {}
-    nullable_literal value;
-};
-
-struct Unary
-{
-    Unary ( Token op_ , Expr right_ ) : op ( op_ ) , right ( right_ )
-    {}
-    Token op;
-    Expr right;
-};
-
-struct Variable
-{
-    Variable(Token name_): name(name_) {}
-    Token name;
-};
-
-struct ExpressionStmt;
-struct PrintStmt;
-struct VarStmt;
-struct BlockSmt;
-using Stmt = std::variant<ExpressionStmt*, PrintStmt*, VarStmt*, BlockSmt*>;
-
-struct ExpressionStmt
-{
-    ExpressionStmt ( Expr expression_ ) : expression ( expression_ ) {}
-    Expr expression;
-};
-
-struct PrintStmt
-{
-    PrintStmt ( Expr expression_ ) : expression ( expression_ ) {}
-    Expr expression;
-};
-
-struct VarStmt
-{
-    VarStmt(Token name_, Expr expression_) : name(name_), initializer(expression_) {}
-    Token name;
-    Expr initializer;
-};
-
-struct BlockSmt
-{
-    BlockSmt(std::vector<Stmt>& statements_) : statements(statements_)  {}
-    std::vector<Stmt> statements;
-};
-
-// helper type for the visitor #4
-template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-// explicit deduction guide (not needed as of C++20)
-template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
-
-std::string printAST(Expr expr);
-
-template<class T>
-void parenthesize_helper(std::stringstream& ss, T expr)
-{
-    ss << " ";
-    ss << printAST(expr);
-}
-
-template<class T, class... Ts>
-void parenthesize_helper(std::stringstream& ss, T expr, Ts... exprs)
-{
-    ss << " ";
-    ss << printAST(expr);
-    parenthesize_helper(ss, exprs...);
-}
-
-template<class... Ts>
-std::string parenthesize(std::string name, Ts... exprs)
-{
-    std::stringstream ss;
-    ss << "(" << name;
-    parenthesize_helper(ss, exprs...);
-    ss << ")";
-    return ss.str();
-}
-
-std::string printAST(Expr expr)
-{
-    return std::visit(overloaded {
-        [](const Assign* expr)
-        {
-            return std::string("");
-        },
-        [](const Binary* expr)
-        {
-            return parenthesize(expr->op.lexeme, expr->left, expr->right);
-        },
-        [](const Grouping* expr)
-        {
-            return parenthesize("group", expr->expression);
-        },
-        [](const Literal* expr)
-        {
-            return nullable_literal_to_string(expr->value);
-        },
-        [](const Unary* expr)
-        {
-            return parenthesize(expr->op.lexeme, expr->right);
-        },
-        [](const Variable* expr)
-        {
-            return expr->name.lexeme;
-        }
-    }, expr);
-}
-
-void deleteAST(Expr expr)
-{
-    return std::visit(overloaded {
-        [](const Assign* expr)
-        {
-            deleteAST(expr->value);
-            delete expr;
-        },
-        [](const Binary* expr)
-        {
-            deleteAST(expr->left);
-            deleteAST(expr->right);
-            delete expr;
-        },
-        [](const Grouping* expr)
-        {
-            deleteAST(expr->expression);
-            delete expr;
-        },
-        [](const Literal* expr)
-        {
-            delete expr;
-        },
-        [](const Unary* expr)
-        {
-            deleteAST(expr->right);
-            delete expr;
-        },
-        [](const Variable* expr)
-        {
-            delete expr;
-        }
-    }, expr);
 }
 
 class Parser
@@ -292,7 +107,7 @@ private:
     {
         Token name = consume(IDENTIFIER, "Expect variable name");
         
-        Expr initializer = (Binary*)NULL;
+        Expr initializer = nullptr;
         if (match({EQUAL}))
         {
             initializer = expression();
@@ -305,10 +120,94 @@ private:
     {
         if (match({PRINT}))
             return print_statement();
+        else if (match({IF}))
+            return if_statement();
+        else if (match({WHILE}))
+            return while_statement();
+        else if (match({FOR}))
+            return for_statement();
         else if (match({LEFT_BRACE}))
             return block();
         else
             return expression_statement();
+    }
+    
+    Stmt for_statement()
+    {
+        consume(LEFT_PAREN, "Expect '(' after 'for'.");
+        Stmt initializer;
+        if (match({SEMICOLON}))
+        {
+          initializer = nullptr;
+        }
+        else if (match({VAR}))
+        {
+          initializer = var_declaration();
+        }
+        else
+        {
+          initializer = expression_statement();
+        }
+        
+        Expr condition = nullptr;
+        if (!check(SEMICOLON))
+        {
+          condition = expression();
+        }
+        consume(SEMICOLON, "Expect ';' after loop condition.");
+        
+        Expr increment = nullptr;
+        if (!check(RIGHT_PAREN))
+        {
+          increment = expression();
+        }
+        consume(RIGHT_PAREN, "Expect ')' after for clauses.");
+        
+        Stmt body = statement();
+        if (std::get_if<std::nullptr_t>(&increment))
+        {
+            std::vector<Stmt> stmts = {body, new ExpressionStmt(increment)};
+            body = new BlockSmt(stmts);
+        }
+        
+        if (std::get_if<std::nullptr_t>(&condition))
+            condition = new Literal(true);
+        
+        body = new WhileStmt(condition, body);
+        
+        if (std::get_if<std::nullptr_t>(&initializer))
+        {
+            std::vector<Stmt> stmts = {initializer, body};
+            body = new BlockSmt(stmts);
+        }
+        
+        return body;
+    }
+    
+    Stmt while_statement()
+    {
+        consume(LEFT_PAREN, "Expect '(' after 'while'.");
+        Expr condition = expression();
+        consume(RIGHT_PAREN, "Expect ')' after condition.");
+        Stmt body = statement();
+
+        return new WhileStmt(condition, body);
+    }
+    
+    Stmt if_statement()
+    {
+        consume(LEFT_PAREN, "Expect '(' after 'if'.");
+        Expr condition = expression();
+        consume(RIGHT_PAREN, "Expect ')' after if condition.");
+
+        Stmt thenBranch = statement();
+        Stmt elseBranch = nullptr;
+        if (match({ELSE}))
+        {
+          elseBranch = statement();
+        }
+        
+        return new IfStmt(condition, thenBranch, elseBranch);
     }
     
     Stmt block()
@@ -340,7 +239,7 @@ private:
     
     Expr assignment()
     {
-        Expr expr = equality();
+        Expr expr = or_expr();
 
         if (match({EQUAL}))
         {
@@ -353,6 +252,30 @@ private:
                 return new Assign(name, value);
             }
             error(equals, "Invalid assignment target.");
+        }
+        return expr;
+    }
+    
+    Expr or_expr()
+    {
+        Expr expr = and_expr();
+        while (match({OR}))
+        {
+            Token op = previous();
+            Expr right = and_expr();
+            expr = new Logical(expr, op, right);
+        }
+        return expr;
+    }
+    
+    Expr and_expr()
+    {
+        Expr expr = equality();
+        while (match({AND}))
+        {
+            Token op = previous();
+            Expr right = equality();
+            expr = new Logical(expr, op, right);
         }
         return expr;
     }
