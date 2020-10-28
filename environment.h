@@ -2,13 +2,26 @@
 
 #include <unordered_map>
 
-#include "lexer.h"
+#include "token.h"
 
 class Environment
 {
 public:
     Environment() : enclosing(NULL) {}
     Environment(Environment* enclosing_) : enclosing(enclosing_) {}
+    ~Environment()
+    {
+        for(auto& value : values)
+        {
+            if (value.second)
+            {
+                if (auto callable = std::get_if<Callable*>(&value.second.value()))
+                {
+                    delete (*callable);
+                }
+            }
+        }
+    }
     
     void define(const std::string& name, nullable_literal value)
     {

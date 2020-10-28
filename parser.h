@@ -72,6 +72,7 @@ private:
     {
         try {
             if (match({VAR})) return var_declaration();
+            if (match({FUN})) return function("function");
             return statement();
         } catch (ParseError) {
             synchronize();
@@ -103,6 +104,28 @@ private:
       }
     }
     
+    Stmt function(const std::string& kind)
+    {
+        Token name = consume(IDENTIFIER, "expect " + kind + " name.");
+        consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
+        std::vector<Token> parameters;
+        if (!check(RIGHT_PAREN))
+        {
+            do
+            {
+                if (parameters.size() >= 255)
+                {
+                    error(peek(), "Can't have more than 255 parameters.");
+                }
+                parameters.push_back(consume(IDENTIFIER, "Expect parameter name."));
+            } while (match({COMMA}));
+        }
+        consume(RIGHT_PAREN, "Expect ')' after parameters.");
+        consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+        std::vector<Stmt> body = block();
+        return new FunctionStmt(name, parameters, body);
+    }
+    
     Stmt var_declaration()
     {
         Token name = consume(IDENTIFIER, "Expect variable name");
@@ -127,9 +150,23 @@ private:
         else if (match({FOR}))
             return for_statement();
         else if (match({LEFT_BRACE}))
-            return block();
+            return new BlockStmt(block());
+        else if (match({RETURN}))
+            return return_statement();
         else
             return expression_statement();
+    }
+    
+    Stmt return_statement()
+    {
+        Token keyword = previous();
+        Expr value = nullptr;
+        if (!check(SEMICOLON))
+        {
+            value = expression();
+        }
+        consume(SEMICOLON, "expect ';' after return value");
+        return new ReturnStmt(keyword, value);
     }
     
     Stmt for_statement()
@@ -167,7 +204,7 @@ private:
         if (std::get_if<std::nullptr_t>(&increment))
         {
             std::vector<Stmt> stmts = {body, new ExpressionStmt(increment)};
-            body = new BlockSmt(stmts);
+            body = new BlockStmt(stmts);
         }
         
         if (std::get_if<std::nullptr_t>(&condition))
@@ -178,7 +215,7 @@ private:
         if (std::get_if<std::nullptr_t>(&initializer))
         {
             std::vector<Stmt> stmts = {initializer, body};
-            body = new BlockSmt(stmts);
+            body = new BlockStmt(stmts);
         }
         
         return body;
@@ -210,7 +247,7 @@ private:
         return new IfStmt(condition, thenBranch, elseBranch);
     }
     
-    Stmt block()
+    std::vector<Stmt> block()
     {
         std::vector<Stmt> statements;
         while (!check(RIGHT_BRACE) && !is_at_end())
@@ -218,7 +255,7 @@ private:
             statements.push_back(declaration());
         }
         consume(RIGHT_BRACE, "Expect '}' after block");
-        return new BlockSmt(statements);
+        return statements;
     }
     
     Stmt print_statement()
@@ -336,7 +373,42 @@ private:
             Expr right = unary();
             return new Unary(op, right);
         }
-        return primary();
+        return call();
+    }
+    
+    Expr call()
+    {
+        Expr expr = primary();
+        while (1)
+        {
+            if (match({LEFT_PAREN}))
+            {
+                expr = finish_call(expr);
+            }
+            else
+            {
+                break;
+            }
+        }
+        return expr;
+    }
+    
+    Expr finish_call(Expr callee)
+    {
+        std::vector<Expr> arguments;
+        if (!check(RIGHT_PAREN))
+        {
+            do
+            {
+                if (arguments.size() >= 255)
+                {
+                    error(peek(), "can't have more than 255 arguments");
+                }
+                arguments.push_back(expression());
+            } while (match({COMMA}));
+        }
+        Token paren = consume(RIGHT_PAREN, "Expect ')' after argument");
+        return new Call(callee, paren, arguments);
     }
     
     Expr primary()

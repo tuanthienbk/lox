@@ -1,3 +1,4 @@
+#pragma once
 #include "expression.h"
 
 struct ExpressionStmt;
@@ -5,8 +6,22 @@ struct PrintStmt;
 struct VarStmt;
 struct IfStmt;
 struct WhileStmt;
-struct BlockSmt;
-using Stmt = std::variant<ExpressionStmt*, PrintStmt*, VarStmt*, IfStmt*, WhileStmt*, BlockSmt*, std::nullptr_t>;
+struct BlockStmt;
+struct FunctionStmt;
+struct ReturnStmt;
+
+using Stmt = std::variant
+<
+    ExpressionStmt*,
+    PrintStmt*,
+    VarStmt*,
+    IfStmt*,
+    WhileStmt*,
+    BlockStmt*,
+    FunctionStmt*,
+    ReturnStmt*,
+    std::nullptr_t
+>;
 
 struct ExpressionStmt
 {
@@ -42,10 +57,40 @@ struct WhileStmt
     Stmt body;
 };
 
-struct BlockSmt
+struct BlockStmt
 {
-    BlockSmt(std::vector<Stmt>& statements_) : statements(statements_)  {}
+    BlockStmt(std::vector<Stmt>&& statements_) : statements(statements_)  {}
+    BlockStmt(std::vector<Stmt>& statements_) : statements(std::move(statements_))  {}
+    
     std::vector<Stmt> statements;
+};
+
+struct FunctionStmt
+{
+    FunctionStmt(Token name_, std::vector<Token>& params_, std::vector<Stmt> body_) :
+        name(name_), params(std::move(params)), body(std::move(body_))
+    {}
+    
+    Token name;
+    std::vector<Token> params;
+    std::vector<Stmt> body;
+};
+
+struct ReturnStmt
+{
+    ReturnStmt(Token keyword_, Expr value_) : keyword(keyword_), value(value_) {}
+    Token keyword;
+    Expr value;
+};
+
+class Return : public std::runtime_error
+{
+public:
+    nullable_literal value;
+public:
+    Return(nullable_literal value_) : std::runtime_error(""), value(value_)
+    {
+    }
 };
 
 

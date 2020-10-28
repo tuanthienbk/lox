@@ -1,6 +1,7 @@
 #pragma once
 #include "parser.h"
 #include "environment.h"
+#include "function.h"
 
 bool is_truthy(nullable_literal literal)
 {
@@ -57,11 +58,17 @@ void runtime_error(const RuntimeError& error)
 
 class Interpreter
 {
+    friend Function;
 public:
-    Interpreter() : m_environment(new Environment()) {}
+    Interpreter()
+    {
+        Callable * clock_fcn = new ClockGlobalFcn();
+        m_globals.define("clock", clock_fcn);
+        m_environment = &m_globals;
+    }
+    
     ~Interpreter()
     {
-        delete m_environment;
     }
     
     void interpret(const std::vector<Stmt>& statements)
@@ -112,10 +119,22 @@ private:
                 while (is_truthy(evaluate(stmt->condition)))
                     execute(stmt->body);
             },
-            [this](const BlockSmt* stmt)
+            [this](const BlockStmt* stmt)
             {
                 Environment current_env(m_environment);
                 execute_block(stmt->statements, &current_env);
+            },
+            [this](const FunctionStmt* stmt)
+            {
+                Callable* function = new Function(const_cast<FunctionStmt*>(stmt));
+                m_environment->define(stmt->name.lexeme, function);
+            },
+            [this](const ReturnStmt* stmt)
+            {
+                nullable_literal value = std::nullopt;
+                if (!std::get_if<std::nullptr_t>(&stmt->value))
+                    value = evaluate(stmt->value);
+                throw Return(value);
             },
             [this](const std::nullptr_t stmt)
             {
@@ -259,6 +278,29 @@ private:
 
                 return evaluate(expr->right);
             },
+            [this](const Call* expr) -> nullable_literal
+            {
+                nullable_literal callee = evaluate(expr->callee);
+
+                std::vector<nullable_literal> arguments;
+                for (auto argument : expr->arguments)
+                {
+                  arguments.push_back(evaluate(argument));
+                }
+                
+                if (auto fptr = std::get_if<Callable*>(&callee.value()))
+                {
+                    if (arguments.size() != (*fptr)->arity())
+                        throw RuntimeError(expr->paren, "expected " + std::to_string((*fptr)->arity()) + " arguments but got "
+                                           + std::to_string(arguments.size()) + "." );
+                    return (*fptr)->call(this, arguments);
+                }
+                else
+                {
+                    throw RuntimeError(expr->paren, "can only call functions and classes");
+                }
+                
+            },
             [this](const Grouping* expr) -> nullable_literal
             {
                 return evaluate(expr->expression);
@@ -297,7 +339,36 @@ private:
         }, expr);
     }
 
-
 private:
     Environment* m_environment;
+    Environment m_globals;
 };
+
+
+nullable_literal Function::call(Interpreter* interpreter, std::vector<nullable_literal>& arguments)
+{
+    Environment env(&interpreter->m_globals);
+    for (int i = 0; i < declaration->params.size(); i++)
+    {
+        env.define(declaration->params[i].lexeme, arguments[i]);
+    }
+    try
+    {
+        interpreter->execute_block(declaration->body, &env);
+    }
+    catch (Return return_value)
+    {
+        return return_value.value;
+    }
+    return std::nullopt;
+}
+
+std::string Function::to_string()
+{
+    return std::string("<fn " + declaration->name.lexeme + ">");
+}
+
+int Function::arity()
+{
+    return (int)declaration->params.size();
+}

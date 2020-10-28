@@ -1,14 +1,16 @@
-#include "lexer.h"
+#pragma once
+#include "token.h"
 
 struct Assign;
 struct Binary;
+struct Call;
 struct Grouping;
 struct Literal;
 struct Logical;
 struct Unary;
 struct Variable;
 
-using Expr = std::variant<Assign*, Binary*, Grouping*, Literal*, Logical*, Unary*, Variable*, std::nullptr_t>;
+using Expr = std::variant<Assign*, Binary*, Call*, Grouping*, Literal*, Logical*, Unary*, Variable*, std::nullptr_t>;
 
 struct Assign
 {
@@ -28,6 +30,15 @@ struct Binary
     Token op;
     Expr right;
     
+};
+
+struct Call
+{
+    Call (Expr callee_, Token paren_, std::vector<Expr>& arg_) : callee(callee_), paren(paren_), arguments(std::move(arg_))
+    {}
+    Expr callee;
+    Token paren;
+    std::vector<Expr> arguments;
 };
 
 struct Grouping
@@ -73,71 +84,6 @@ template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 // explicit deduction guide (not needed as of C++20)
 template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
-std::string printAST(Expr expr);
-
-template<class T>
-void parenthesize_helper(std::stringstream& ss, T expr)
-{
-    ss << " ";
-    ss << printAST(expr);
-}
-
-template<class T, class... Ts>
-void parenthesize_helper(std::stringstream& ss, T expr, Ts... exprs)
-{
-    ss << " ";
-    ss << printAST(expr);
-    parenthesize_helper(ss, exprs...);
-}
-
-template<class... Ts>
-std::string parenthesize(std::string name, Ts... exprs)
-{
-    std::stringstream ss;
-    ss << "(" << name;
-    parenthesize_helper(ss, exprs...);
-    ss << ")";
-    return ss.str();
-}
-
-std::string printAST(Expr expr)
-{
-    return std::visit(overloaded {
-        [](const Assign* expr)
-        {
-            return std::string("");
-        },
-        [](const Binary* expr)
-        {
-            return parenthesize(expr->op.lexeme, expr->left, expr->right);
-        },
-        [](const Logical* expr)
-        {
-            return parenthesize(expr->op.lexeme, expr->left, expr->right);
-        },
-        [](const Grouping* expr)
-        {
-            return parenthesize("group", expr->expression);
-        },
-        [](const Literal* expr)
-        {
-            return nullable_literal_to_string(expr->value);
-        },
-        [](const Unary* expr)
-        {
-            return parenthesize(expr->op.lexeme, expr->right);
-        },
-        [](const Variable* expr)
-        {
-            return expr->name.lexeme;
-        },
-        [](const std::nullptr_t expr)
-        {
-            return std::string("");
-        }
-    }, expr);
-}
-
 void deleteAST(Expr expr)
 {
     return std::visit(overloaded {
@@ -150,6 +96,13 @@ void deleteAST(Expr expr)
         {
             deleteAST(expr->left);
             deleteAST(expr->right);
+            delete expr;
+        },
+        [](const Call* expr)
+        {
+            deleteAST(expr->callee);
+            for (auto expr_arg : expr->arguments)
+                deleteAST(expr_arg);
             delete expr;
         },
         [](const Logical* expr)
