@@ -1,5 +1,6 @@
 #pragma once
 #include "expression.h"
+#include <stdexcept>
 
 struct ExpressionStmt;
 struct PrintStmt;
@@ -68,7 +69,7 @@ struct BlockStmt
 struct FunctionStmt
 {
     FunctionStmt(Token name_, std::vector<Token>& params_, std::vector<Stmt> body_) :
-        name(name_), params(std::move(params)), body(std::move(body_))
+        name(name_), params(std::move(params_)), body(std::move(body_))
     {}
     
     Token name;
@@ -87,8 +88,7 @@ class Return : public std::runtime_error
 {
 public:
     nullable_literal value;
-public:
-    Return(nullable_literal value_) : std::runtime_error(""), value(value_)
+    explicit Return(nullable_literal value_) : std::runtime_error(""), value(value_)
     {
     }
 };

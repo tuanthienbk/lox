@@ -112,7 +112,7 @@ private:
                 if (is_truthy(evaluate(stmt->condition)))
                     execute(stmt->thenBranch);
                 else
-                    execute(stmt->thenBranch);
+                    execute(stmt->elseBranch);
             },
             [this](const WhileStmt* stmt)
             {
@@ -144,18 +144,18 @@ private:
     
     void execute_block(const std::vector<Stmt>& statements, Environment* env)
     {
-        Environment* previous = m_environment;
+        //Environment* previous = m_environment;
+        ScopeEnvironment scopeEnv(&m_environment);
         try
         {
             m_environment = env;
             for(auto& stmt : statements)
                 execute(stmt);
         }
-        catch (...)
+        catch (const Return& return_value)
         {
+            throw;
         }
-        //finally
-        m_environment = previous;
     }
     
     nullable_literal evaluate(Expr expr)
@@ -352,13 +352,19 @@ nullable_literal Function::call(Interpreter* interpreter, std::vector<nullable_l
     {
         env.define(declaration->params[i].lexeme, arguments[i]);
     }
+    
     try
     {
         interpreter->execute_block(declaration->body, &env);
     }
-    catch (Return return_value)
+    catch (const Return& return_value)
     {
         return return_value.value;
+    }
+    catch (...)
+    {
+        std::cout << "something wrong" << std::endl;
+        return;
     }
     return std::nullopt;
 }

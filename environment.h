@@ -58,3 +58,16 @@ private:
     std::unordered_map<std::string, nullable_literal> values;
     Environment* enclosing;
 };
+
+class ScopeEnvironment
+{
+private:
+    Environment * previous;
+    Environment ** current;
+public:
+    ScopeEnvironment(Environment** env) : previous(*env), current(env) {}
+    ~ScopeEnvironment()
+    {
+        *current = previous;
+    }
+};
