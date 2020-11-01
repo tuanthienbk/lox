@@ -8,7 +8,7 @@ class Environment
 {
 public:
     Environment() : enclosing(NULL) {}
-    Environment(Environment* enclosing_) : enclosing(enclosing_) {}
+    Environment(std::shared_ptr<Environment> enclosing_) : enclosing(enclosing_) {}
     ~Environment()
     {
         for(auto& value : values)
@@ -56,16 +56,16 @@ public:
     }
 private:
     std::unordered_map<std::string, nullable_literal> values;
-    Environment* enclosing;
+    std::shared_ptr<Environment> enclosing;
 };
 
 class ScopeEnvironment
 {
 private:
-    Environment * previous;
-    Environment ** current;
+    std::shared_ptr<Environment> previous;
+    std::shared_ptr<Environment>* current;
 public:
-    ScopeEnvironment(Environment** env) : previous(*env), current(env) {}
+    ScopeEnvironment(std::shared_ptr<Environment>* env) : previous(*env), current(env) {}
     ~ScopeEnvironment()
     {
         *current = previous;

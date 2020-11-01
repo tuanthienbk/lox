@@ -63,8 +63,9 @@ public:
     Interpreter()
     {
         Callable * clock_fcn = new ClockGlobalFcn();
-        m_globals.define("clock", clock_fcn);
-        m_environment = &m_globals;
+        m_globals = std::make_shared<Environment>();
+        m_globals->define("clock", clock_fcn);
+        m_environment = m_globals;
     }
     
     ~Interpreter()
@@ -121,12 +122,12 @@ private:
             },
             [this](const BlockStmt* stmt)
             {
-                Environment current_env(m_environment);
-                execute_block(stmt->statements, &current_env);
+                std::shared_ptr<Environment> current_env = std::make_shared<Environment>(m_environment);
+                execute_block(stmt->statements, current_env);
             },
             [this](const FunctionStmt* stmt)
             {
-                Callable* function = new Function(const_cast<FunctionStmt*>(stmt));
+                Callable* function = new Function(const_cast<FunctionStmt*>(stmt), m_environment);
                 m_environment->define(stmt->name.lexeme, function);
             },
             [this](const ReturnStmt* stmt)
@@ -142,20 +143,13 @@ private:
         }, statement);
     }
     
-    void execute_block(const std::vector<Stmt>& statements, Environment* env)
+    void execute_block(const std::vector<Stmt>& statements, std::shared_ptr<Environment> env)
     {
         //Environment* previous = m_environment;
         ScopeEnvironment scopeEnv(&m_environment);
-        try
-        {
-            m_environment = env;
-            for(auto& stmt : statements)
-                execute(stmt);
-        }
-        catch (const Return& return_value)
-        {
-            throw;
-        }
+        m_environment = env;
+        for(auto& stmt : statements)
+            execute(stmt);
     }
     
     nullable_literal evaluate(Expr expr)
@@ -340,41 +334,37 @@ private:
     }
 
 private:
-    Environment* m_environment;
-    Environment m_globals;
+    std::shared_ptr<Environment> m_environment;
+    std::shared_ptr<Environment> m_globals;
 };
 
 
 nullable_literal Function::call(Interpreter* interpreter, std::vector<nullable_literal>& arguments)
 {
-    Environment env(&interpreter->m_globals);
-    for (int i = 0; i < declaration->params.size(); i++)
+    std::shared_ptr<Environment> env = std::make_shared<Environment>(m_closure);
+    for (int i = 0; i < m_declaration->params.size(); i++)
     {
-        env.define(declaration->params[i].lexeme, arguments[i]);
+        env->define(m_declaration->params[i].lexeme, arguments[i]);
     }
     
     try
     {
-        interpreter->execute_block(declaration->body, &env);
+        interpreter->execute_block(m_declaration->body, env);
     }
     catch (const Return& return_value)
     {
         return return_value.value;
     }
-    catch (...)
-    {
-        std::cout << "something wrong" << std::endl;
-        return;
-    }
+    
     return std::nullopt;
 }
 
 std::string Function::to_string()
 {
-    return std::string("<fn " + declaration->name.lexeme + ">");
+    return std::string("<fn " + m_declaration->name.lexeme + ">");
 }
 
 int Function::arity()
 {
-    return (int)declaration->params.size();
+    return (int)m_declaration->params.size();
 }

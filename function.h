@@ -8,13 +8,14 @@
 class Function : public Callable
 {
 public:
-    Function(FunctionStmt* decl) : declaration(decl) {}
+    Function(FunctionStmt* decl, std::shared_ptr<Environment> closure) : m_declaration(decl), m_closure(closure) {}
     
     nullable_literal call(Interpreter* interpreter, std::vector<nullable_literal>& arguments) override;
     std::string to_string() override;
     int arity() override;
 private:
-    FunctionStmt* declaration;
+    FunctionStmt* m_declaration;
+    std::shared_ptr<Environment> m_closure;
 };
 
 class ClockGlobalFcn : public Callable
