@@ -24,6 +24,7 @@ set(HEADERS
     statement.h
 	lexer.h
 	parser.h
+    resolver.h
 	interpreter.h
 )
 

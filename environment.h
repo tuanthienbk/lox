@@ -54,6 +54,30 @@ public:
         
         throw RuntimeError(name, "Undefined variable '" + name.lexeme + "'.");
     }
+    
+    nullable_literal get_at(int distance, const std::string& name)
+    {
+        Environment* anc = ancestor(distance);
+        if ((anc) && (anc->values.find(name) != anc->values.end()))
+            return anc->values[name];
+        else
+            return std::nullopt;
+    }
+    
+    void assign_at(int distance, const Token& name, nullable_literal value)
+    {
+        Environment* anc = ancestor(distance);
+        if (anc)
+            anc->values[name.lexeme] = value;
+    }
+private:
+    Environment* ancestor(int distance)
+    {
+        Environment* env = this;
+        for(int i = 0; i < distance; ++i)
+            env = env->enclosing.get();
+        return env;
+    }
 private:
     std::unordered_map<std::string, nullable_literal> values;
     std::shared_ptr<Environment> enclosing;

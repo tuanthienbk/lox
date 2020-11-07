@@ -90,6 +90,12 @@ public:
             std::cout << "Unknown error" << std::endl;
         }
     }
+    
+    template <typename expr_t>
+    void resolve(const expr_t* expr, int depth)
+    {
+        m_locals[reinterpret_cast<size_t>(expr)] = depth;
+    }
 private:
     void execute(Stmt statement)
     {
@@ -158,7 +164,11 @@ private:
             [this](const Assign* expr) -> nullable_literal
             {
                 nullable_literal value = evaluate(expr->value);
-                m_environment->assign(expr->name, value);
+                size_t ptrValue = reinterpret_cast<size_t>(expr);
+                if (m_locals.find(ptrValue) != m_locals.end())
+                    m_environment->assign_at(m_locals[ptrValue], expr->name, value);
+                else
+                    m_globals->assign(expr->name, value);
                 return value;
             },
             [this](const Binary* expr) -> nullable_literal
@@ -323,7 +333,8 @@ private:
             },
             [this](const Variable* expr) -> nullable_literal
             {
-                return m_environment->get(expr->name);
+                //return m_environment->get(expr->name);
+                return lookup_variable(expr->name, expr);
             }
             ,
             [this](const std::nullptr_t expr) -> nullable_literal
@@ -332,10 +343,21 @@ private:
             }
         }, expr);
     }
+    
+    template <typename expr_t>
+    nullable_literal lookup_variable(const Token& name, const expr_t* expr)
+    {
+        size_t ptrValue = reinterpret_cast<size_t>(expr);
+        if (m_locals.find(ptrValue) != m_locals.end())
+            return m_environment->get_at(m_locals[ptrValue], name.lexeme);
+        else
+            return m_globals->get(name);
+    }
 
 private:
     std::shared_ptr<Environment> m_environment;
     std::shared_ptr<Environment> m_globals;
+    std::unordered_map<size_t, int> m_locals;
 };
 
 

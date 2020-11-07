@@ -15,6 +15,14 @@ void error(int line, const std::string& message)
     report(line, "", message);
 }
 
+void report_error(const Token& token, const std::string& message)
+{
+    if (token.type == ENDOFFILE)
+        report(token.line, " at end", message);
+    else
+        report(token.line, "  at '" + token.lexeme + "'", message);
+}
+
 struct RuntimeError : public std::runtime_error
 {
     using base = std::runtime_error;
@@ -23,4 +31,16 @@ struct RuntimeError : public std::runtime_error
     {
     }
 };
+
+struct ParseError : public std::runtime_error
+{
+    using base = std::runtime_error;
+    using base::base;
+};
+
+ParseError error(const Token& token, const std::string& msg)
+{
+    report_error(token, msg);
+    return ParseError("");
+}
 

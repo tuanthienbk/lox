@@ -101,7 +101,7 @@ void deleteAST(Expr expr)
         [](const Call* expr)
         {
             deleteAST(expr->callee);
-            for (auto expr_arg : expr->arguments)
+            for (auto& expr_arg : expr->arguments)
                 deleteAST(expr_arg);
             delete expr;
         },

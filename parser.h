@@ -44,13 +44,6 @@
 //                    (Unary, (Token,op)(Expr,right))\
 //           )
 
-void report_error(const Token& token, const std::string& message)
-{
-    if (token.type == ENDOFFILE)
-        report(token.line, " at end", message);
-    else
-        report(token.line, "  at '" + token.lexeme + "'", message);
-}
 
 class Parser
 {
@@ -88,16 +81,19 @@ private:
       {
         if (previous().type == SEMICOLON) return;
 
-        switch (peek().type) {
-          case CLASS:
-          case FUN:
-          case VAR:
-          case FOR:
-          case IF:
-          case WHILE:
-          case PRINT:
-          case RETURN:
-            return;
+        switch (peek().type)
+        {
+            case CLASS:
+            case FUN:
+            case VAR:
+            case FOR:
+            case IF:
+            case WHILE:
+            case PRINT:
+            case RETURN:
+                return;
+            default:
+                return;
         }
 
         advance();
@@ -115,7 +111,7 @@ private:
             {
                 if (parameters.size() >= 255)
                 {
-                    error(peek(), "Can't have more than 255 parameters.");
+                    throw error(peek(), "Can't have more than 255 parameters.");
                 }
                 parameters.push_back(consume(IDENTIFIER, "Expect parameter name."));
             } while (match({COMMA}));
@@ -288,7 +284,7 @@ private:
                 Token name = (*vptr)->name;
                 return new Assign(name, value);
             }
-            error(equals, "Invalid assignment target.");
+            throw error(equals, "Invalid assignment target.");
         }
         return expr;
     }
@@ -402,7 +398,7 @@ private:
             {
                 if (arguments.size() >= 255)
                 {
-                    error(peek(), "can't have more than 255 arguments");
+                    throw error(peek(), "can't have more than 255 arguments");
                 }
                 arguments.push_back(expression());
             } while (match({COMMA}));
@@ -442,20 +438,6 @@ private:
         if (check(type)) return advance();
         throw error(peek(), msg);
     }
-    
-    struct ParseError : public std::runtime_error
-    {
-        using base = std::runtime_error;
-        using base::base;
-    };
-    
-    ParseError error(const Token& token, const std::string& msg)
-    {
-        report_error(token, msg);
-        return ParseError("");
-    }
-    
-    
     
     bool match(std::initializer_list<TokenType> types)
     {

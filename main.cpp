@@ -4,6 +4,7 @@
 
 #include "lexer.h"
 #include "parser.h"
+#include "resolver.h"
 #include "interpreter.h"
 
 void run_file(const char *);
@@ -87,9 +88,13 @@ void run(std::string& source)
     Parser parser(tokens);
     std::vector<Stmt> statements = parser.parse();
     if (has_error) exit(65);
-//    Binary * binary = std::get<Binary*>(expression);
-    //std::cout<< printAST(expression) << std::endl;
+
     Interpreter interpreter;
+
+    Resolver<Interpreter> resolver(&interpreter);
+    resolver.resolve(statements);
+    if (has_error) exit(65);
+    
     interpreter.interpret(statements);
     
     if (has_runtime_error) exit(70);
