@@ -133,47 +133,49 @@ private:
     void resolve(Expr expr)
     {
         return std::visit(overloaded {
-            [this](const Assign* expr) -> nullable_literal
+            [this](const Assign* expr)
             {
                 resolve(expr->value);
                 resolveLocal(expr, expr->name);
             },
-            [this](const Binary* expr) -> nullable_literal
+            [this](const Binary* expr)
             {
                 resolve(expr->right);
                 resolve(expr->left);
             },
-            [this](const Logical* expr) -> nullable_literal
+            [this](const Logical* expr)
             {
                 resolve(expr->right);
                 resolve(expr->left);
             },
-            [this](const Call* expr) -> nullable_literal
+            [this](const Call* expr)
             {
                 resolve(expr->callee);
                 for(auto& argument : expr->arguments)
                     resolve(argument);
             },
-            [this](const Grouping* expr) -> nullable_literal
+            [this](const Grouping* expr)
             {
                 resolve(expr->expression);
             },
-            [this](const Literal* expr) -> nullable_literal
+            [this](const Literal* expr)
             {
             },
-            [this](const Unary* expr) -> nullable_literal
+            [this](const Unary* expr)
             {
                 resolve(expr->right);
             },
-            [this](const Variable* expr) -> nullable_literal
+            [this](const Variable* expr)
             {
-                if (!scopes.empty() && !scopes.back()[expr->name.lexeme])
+                if (!scopes.empty() &&
+                    scopes.back().find(expr->name.lexeme) != scopes.back().end() &&
+                    !scopes.back()[expr->name.lexeme])
                 {
                     error(expr->name, "Can't read local variable in its own initializer.");
                 }
                 resolveLocal(expr, expr->name);
             },
-            [this](const std::nullptr_t expr) -> nullable_literal
+            [this](const std::nullptr_t expr)
             {
             }
         }, expr);
