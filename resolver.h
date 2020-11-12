@@ -15,7 +15,8 @@ private:
     enum class FunctionType
     {
         NONE,
-        FUNCTION
+        FUNCTION,
+        METHOD
     } currentFunction;
 
 public:
@@ -74,6 +75,16 @@ private:
                 declare(stmt->name);
                 define(stmt->name);
                 resolveFunction(stmt, FunctionType::FUNCTION);
+            },
+            [this](const ClassStmt* stmt)
+            {
+                declare(stmt->name);
+                define(stmt->name);
+                for(auto& method: stmt->methods)
+                {
+                    FunctionType declaration = FunctionType::METHOD;
+                    resolveFunction(std::get<FunctionStmt*>(method), declaration);
+                }
             },
             [this](const ReturnStmt* stmt)
             {
@@ -153,6 +164,15 @@ private:
                 resolve(expr->callee);
                 for(auto& argument : expr->arguments)
                     resolve(argument);
+            },
+            [this](const Get* expr)
+            {
+                resolve(expr->object);
+            },
+            [this](const Set* expr)
+            {
+                resolve(expr->value);
+                resolve(expr->object);
             },
             [this](const Grouping* expr)
             {

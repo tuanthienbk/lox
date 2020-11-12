@@ -9,6 +9,7 @@ struct IfStmt;
 struct WhileStmt;
 struct BlockStmt;
 struct FunctionStmt;
+struct ClassStmt;
 struct ReturnStmt;
 
 using Stmt = std::variant
@@ -20,6 +21,7 @@ using Stmt = std::variant
     WhileStmt*,
     BlockStmt*,
     FunctionStmt*,
+    ClassStmt*,
     ReturnStmt*,
     std::nullptr_t
 >;
@@ -77,6 +79,16 @@ struct FunctionStmt
     std::vector<Stmt> body;
 };
 
+struct ClassStmt
+{
+    ClassStmt(Token name_, std::vector<Stmt>& methods_) :
+        name(name_), methods(std::move(methods_))
+    {}
+    
+    Token name;
+    std::vector<Stmt> methods;
+};
+
 struct ReturnStmt
 {
     ReturnStmt(Token keyword_, Expr value_) : keyword(keyword_), value(value_) {}
@@ -94,3 +106,60 @@ public:
 };
 
 
+void deleteStmt(Stmt statement)
+{
+    return std::visit(overloaded {
+        [](const PrintStmt* stmt)
+        {
+            deleteExpr(stmt->expression);
+            delete stmt;
+        },
+        [](const ExpressionStmt* stmt)
+        {
+            deleteExpr(stmt->expression);
+            delete stmt;
+        },
+        [](const VarStmt* stmt)
+        {
+            deleteExpr(stmt->initializer);
+            delete stmt;
+        },
+        [](const IfStmt* stmt)
+        {
+            deleteExpr(stmt->condition);
+            deleteStmt(stmt->thenBranch);
+            deleteStmt(stmt->elseBranch);
+            delete stmt;
+        },
+        [](const WhileStmt* stmt)
+        {
+            deleteExpr(stmt->condition);
+            deleteStmt(stmt->body);
+        },
+        [](const BlockStmt* stmt)
+        {
+            for(const Stmt& statement: stmt->statements)
+                deleteStmt(statement);
+        },
+        [](const FunctionStmt* stmt)
+        {
+            for(const Stmt& statement: stmt->body)
+                deleteStmt(statement);
+            delete stmt;
+        },
+        [](const ClassStmt* stmt)
+        {
+            for(const Stmt& statement: stmt->methods)
+                deleteStmt(statement);
+            delete stmt;
+        },
+        [](const ReturnStmt* stmt)
+        {
+            deleteExpr(stmt->value);
+            delete stmt;
+        },
+        [](const std::nullptr_t stmt)
+        {
+        }
+    }, statement);
+}

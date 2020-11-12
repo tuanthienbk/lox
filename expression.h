@@ -4,13 +4,28 @@
 struct Assign;
 struct Binary;
 struct Call;
+struct Get;
+struct Set;
 struct Grouping;
 struct Literal;
 struct Logical;
 struct Unary;
 struct Variable;
 
-using Expr = std::variant<Assign*, Binary*, Call*, Grouping*, Literal*, Logical*, Unary*, Variable*, std::nullptr_t>;
+using Expr = std::variant
+<
+    Assign*,
+    Binary*,
+    Call*,
+    Get*,
+    Set*,
+    Grouping*,
+    Literal*,
+    Logical*,
+    Unary*,
+    Variable*,
+    std::nullptr_t
+>;
 
 struct Assign
 {
@@ -39,6 +54,23 @@ struct Call
     Expr callee;
     Token paren;
     std::vector<Expr> arguments;
+};
+
+struct Get
+{
+    Get( Expr obj, Token name_) : object(obj), name(name_)
+    {}
+    Expr object;
+    Token name;
+};
+
+struct Set
+{
+    Set(Expr obj, Token& nm, Expr val) : object(obj), name(nm), value(val)
+    {}
+    Expr object;
+    Token name;
+    Expr value;
 };
 
 struct Grouping
@@ -84,36 +116,47 @@ template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 // explicit deduction guide (not needed as of C++20)
 template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
-void deleteAST(Expr expr)
+void deleteExpr(Expr expr)
 {
     return std::visit(overloaded {
         [](const Assign* expr)
         {
-            deleteAST(expr->value);
+            deleteExpr(expr->value);
             delete expr;
         },
         [](const Binary* expr)
         {
-            deleteAST(expr->left);
-            deleteAST(expr->right);
+            deleteExpr(expr->left);
+            deleteExpr(expr->right);
             delete expr;
         },
         [](const Call* expr)
         {
-            deleteAST(expr->callee);
+            deleteExpr(expr->callee);
             for (auto& expr_arg : expr->arguments)
-                deleteAST(expr_arg);
+                deleteExpr(expr_arg);
+            delete expr;
+        },
+        [](const Get* expr)
+        {
+            deleteExpr(expr->object);
+            delete expr;
+        },
+        [](const Set* expr)
+        {
+            deleteExpr(expr->object);
+            deleteExpr(expr->value);
             delete expr;
         },
         [](const Logical* expr)
         {
-            deleteAST(expr->left);
-            deleteAST(expr->right);
+            deleteExpr(expr->left);
+            deleteExpr(expr->right);
             delete expr;
         },
         [](const Grouping* expr)
         {
-            deleteAST(expr->expression);
+            deleteExpr(expr->expression);
             delete expr;
         },
         [](const Literal* expr)
@@ -122,7 +165,7 @@ void deleteAST(Expr expr)
         },
         [](const Unary* expr)
         {
-            deleteAST(expr->right);
+            deleteExpr(expr->right);
             delete expr;
         },
         [](const Variable* expr)

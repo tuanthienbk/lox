@@ -65,6 +65,7 @@ private:
     {
         try {
             if (match({VAR})) return var_declaration();
+            if (match({CLASS})) return class_declaration();
             if (match({FUN})) return function("function");
             return statement();
         } catch (ParseError) {
@@ -98,6 +99,19 @@ private:
 
         advance();
       }
+    }
+    
+    Stmt class_declaration()
+    {
+        Token name = consume(IDENTIFIER, "Expect class name");
+        consume(LEFT_BRACE, "Expect '{' before class body");
+        std::vector<Stmt> methods;
+        while (!check(RIGHT_BRACE) && !is_at_end())
+        {
+            methods.push_back(function("method"));
+        }
+        consume(RIGHT_BRACE, "Expect '}' after class body");
+        return new ClassStmt(name, methods);
     }
     
     Stmt function(const std::string& kind)
@@ -284,6 +298,10 @@ private:
                 Token name = (*vptr)->name;
                 return new Assign(name, value);
             }
+            else if (auto vptr = std::get_if<Get*>(&expr))
+            {
+                return new Set((*vptr)->object, (*vptr)->name, value);
+            }
             throw error(equals, "Invalid assignment target.");
         }
         return expr;
@@ -380,6 +398,11 @@ private:
             if (match({LEFT_PAREN}))
             {
                 expr = finish_call(expr);
+            }
+            else if (match({DOT}))
+            {
+                Token name = consume(IDENTIFIER, "Expect property name after '.'");
+                expr = new Get(expr, name);
             }
             else
             {

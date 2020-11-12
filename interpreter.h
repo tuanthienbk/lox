@@ -2,6 +2,7 @@
 #include "parser.h"
 #include "environment.h"
 #include "function.h"
+#include "class.h"
 
 bool is_truthy(nullable_literal literal)
 {
@@ -135,6 +136,22 @@ private:
             {
                 Callable* function = new Function(const_cast<FunctionStmt*>(stmt), m_environment);
                 m_environment->define(stmt->name.lexeme, function);
+            },
+            [this](const ClassStmt* stmt)
+            {
+                m_environment->define(stmt->name.lexeme, std::nullopt);
+                
+                std::unordered_map<std::string, Function*> methods;
+                for (auto& method : stmt->methods)
+                {
+                    FunctionStmt* functionStmt = std::get<FunctionStmt*>(method);
+                    Function* function = new Function(functionStmt, m_environment);
+                    methods[functionStmt->name.lexeme] = function;
+                }
+
+                Klass* klass = new Klass(stmt->name.lexeme, methods);
+                
+                m_environment->assign(stmt->name, klass);
             },
             [this](const ReturnStmt* stmt)
             {
@@ -305,6 +322,31 @@ private:
                 }
                 
             },
+            [this](const Get* expr) -> nullable_literal
+            {
+                nullable_literal object = evaluate(expr->object);
+                if (auto ptr = std::get_if<ClassInstanceInterface*>(&object.value()))
+                {
+                    return (*ptr)->get(expr->name);
+                }
+                throw RuntimeError(expr->name, "Only instances have properties");
+                
+            },
+            [this](const Set* expr) -> nullable_literal
+            {
+                nullable_literal object = evaluate(expr->object);
+
+                if (auto ptr = std::get_if<ClassInstanceInterface*>(&object.value()))
+                {
+                    nullable_literal value = evaluate(expr->value);
+                    (*ptr)->set(expr->name, value);
+                    return value;
+                }
+                else
+                {
+                    throw RuntimeError(expr->name, "Only instances have fields.");
+                }
+            },
             [this](const Grouping* expr) -> nullable_literal
             {
                 return evaluate(expr->expression);
@@ -360,6 +402,7 @@ private:
     std::unordered_map<size_t, int> m_locals;
 };
 
+// Function
 
 nullable_literal Function::call(Interpreter* interpreter, std::vector<nullable_literal>& arguments)
 {
@@ -390,3 +433,53 @@ int Function::arity()
 {
     return (int)m_declaration->params.size();
 }
+
+// Class
+
+nullable_literal Klass::call(Interpreter* interpreter, std::vector<nullable_literal>& arguments)
+{
+    ClassInstance* instance = new ClassInstance(this);
+    return instance;
+}
+
+std::string Klass::to_string()
+{
+    return name;
+}
+
+int Klass::arity()
+{
+    return 0;
+}
+
+Function* Klass::find_method(const std::string& name)
+{
+    if (methods.find(name) != methods.end())
+        return methods[name];
+    else
+        return NULL;
+}
+
+// ClassInstance
+
+std::string ClassInstance::to_string()
+{
+    return klass->to_string() + " instance";
+}
+
+nullable_literal ClassInstance::get(const Token& name)
+{
+    if (fields.find(name.lexeme) != fields.end())
+        return fields[name.lexeme];
+    
+    Function* method = klass->find_method(name.lexeme);
+    if (method) return method;
+    
+    throw RuntimeError(name, "Undefined property '" + name.lexeme + "'");
+}
+
+void ClassInstance::set(const Token& name, nullable_literal value)
+{
+    fields[name.lexeme] = value;
+}
+

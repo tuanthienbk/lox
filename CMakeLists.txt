@@ -20,6 +20,7 @@ set(HEADERS
     token.h
     literal.h
     function.h
+    class.h
     expression.h
     statement.h
 	lexer.h

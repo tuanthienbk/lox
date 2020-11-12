@@ -11,16 +11,7 @@ public:
     Environment(std::shared_ptr<Environment> enclosing_) : enclosing(enclosing_) {}
     ~Environment()
     {
-        for(auto& value : values)
-        {
-            if (value.second)
-            {
-                if (auto callable = std::get_if<Callable*>(&value.second.value()))
-                {
-                    delete (*callable);
-                }
-            }
-        }
+        deleteLiteralMap(values);
     }
     
     void define(const std::string& name, nullable_literal value)
