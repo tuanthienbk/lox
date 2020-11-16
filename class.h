@@ -24,6 +24,7 @@ public:
     int arity() override;
     
     Function* find_method(const std::string& name);
+    
 private:
     std::string name;
     std::unordered_map<std::string, Function*> methods;

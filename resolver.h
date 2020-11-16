@@ -16,13 +16,21 @@ private:
     {
         NONE,
         FUNCTION,
-        METHOD
+        METHOD,
+        INITIALIZER
     } currentFunction;
+    
+    enum class ClassType
+    {
+        NONE,
+        CLASS
+    } currentClass;
 
 public:
     Resolver(Interpreter* interpreter_) :
         interpreter(interpreter_),
-        currentFunction(FunctionType::NONE)
+        currentFunction(FunctionType::NONE),
+        currentClass(ClassType::NONE)
     {}
     
     void resolve(const std::vector<Stmt>& statements)
@@ -78,13 +86,22 @@ private:
             },
             [this](const ClassStmt* stmt)
             {
+                ClassType enclosingClass = currentClass;
+                currentClass = ClassType::CLASS;
                 declare(stmt->name);
                 define(stmt->name);
+                begin_scope();
+                scopes.back()["this"] = true;
                 for(auto& method: stmt->methods)
                 {
                     FunctionType declaration = FunctionType::METHOD;
-                    resolveFunction(std::get<FunctionStmt*>(method), declaration);
+                    FunctionStmt* fn = std::get<FunctionStmt*>(method);
+                    if (fn->name.lexeme == "init")
+                        declaration = FunctionType::INITIALIZER;
+                    resolveFunction(fn, declaration);
                 }
+                end_scope();
+                currentClass = enclosingClass;
             },
             [this](const ReturnStmt* stmt)
             {
@@ -92,7 +109,12 @@ private:
                     error(stmt->keyword, "Can't return from top-level code.");
                 
                 if (!std::get_if<std::nullptr_t>(&stmt->value))
+                {
+                    if (currentFunction == FunctionType::INITIALIZER)
+                        error(stmt->keyword, "Can't return from an initializer.");
+                    
                     resolve(stmt->value);
+                }
             },
             [this](const std::nullptr_t stmt)
             {
@@ -184,6 +206,15 @@ private:
             [this](const Unary* expr)
             {
                 resolve(expr->right);
+            },
+            [this](const This* expr)
+            {
+                if (currentClass == ClassType::NONE)
+                {
+                    error(expr->keyword, "Can't use 'this' outside of a class");
+                    return;
+                }
+                resolveLocal(expr, expr->keyword);
             },
             [this](const Variable* expr)
             {

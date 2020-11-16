@@ -11,6 +11,7 @@ struct Literal;
 struct Logical;
 struct Unary;
 struct Variable;
+struct This;
 
 using Expr = std::variant
 <
@@ -24,6 +25,7 @@ using Expr = std::variant
     Logical*,
     Unary*,
     Variable*,
+    This*,
     std::nullptr_t
 >;
 
@@ -111,6 +113,12 @@ struct Variable
     Token name;
 };
 
+struct This
+{
+    This(Token kw) : keyword(kw) {}
+    Token keyword;
+};
+
 // helper type for the visitor #4
 template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 // explicit deduction guide (not needed as of C++20)
@@ -169,6 +177,10 @@ void deleteExpr(Expr expr)
             delete expr;
         },
         [](const Variable* expr)
+        {
+            delete expr;
+        },
+        [](const This* expr)
         {
             delete expr;
         },

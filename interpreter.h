@@ -134,7 +134,7 @@ private:
             },
             [this](const FunctionStmt* stmt)
             {
-                Callable* function = new Function(const_cast<FunctionStmt*>(stmt), m_environment);
+                Callable* function = new Function(const_cast<FunctionStmt*>(stmt), m_environment, false);
                 m_environment->define(stmt->name.lexeme, function);
             },
             [this](const ClassStmt* stmt)
@@ -145,7 +145,7 @@ private:
                 for (auto& method : stmt->methods)
                 {
                     FunctionStmt* functionStmt = std::get<FunctionStmt*>(method);
-                    Function* function = new Function(functionStmt, m_environment);
+                    Function* function = new Function(functionStmt, m_environment, functionStmt->name.lexeme == "init");
                     methods[functionStmt->name.lexeme] = function;
                 }
 
@@ -375,10 +375,12 @@ private:
             },
             [this](const Variable* expr) -> nullable_literal
             {
-                //return m_environment->get(expr->name);
                 return lookup_variable(expr->name, expr);
-            }
-            ,
+            },
+            [this](const This* expr) -> nullable_literal
+            {
+                return lookup_variable(expr->keyword, expr);
+            },
             [this](const std::nullptr_t expr) -> nullable_literal
             {
                 return std::nullopt;
@@ -418,8 +420,11 @@ nullable_literal Function::call(Interpreter* interpreter, std::vector<nullable_l
     }
     catch (const Return& return_value)
     {
+        if (m_isInitializer) return m_closure->get_at(0, "this");
         return return_value.value;
     }
+    
+    if (m_isInitializer) return m_closure->get_at(0, "this");
     
     return std::nullopt;
 }
@@ -434,11 +439,21 @@ int Function::arity()
     return (int)m_declaration->params.size();
 }
 
+Function* Function::bind(ClassInstance* instance)
+{
+    std::shared_ptr<Environment> env = std::make_shared<Environment>(m_closure);
+    env->define("this", instance);
+    return new Function(m_declaration, env, m_isInitializer);
+}
+
 // Class
 
 nullable_literal Klass::call(Interpreter* interpreter, std::vector<nullable_literal>& arguments)
 {
     ClassInstance* instance = new ClassInstance(this);
+    Function* initializer = find_method("init");
+    if (initializer)
+        initializer->bind(instance)->call(interpreter, arguments);
     return instance;
 }
 
@@ -449,7 +464,9 @@ std::string Klass::to_string()
 
 int Klass::arity()
 {
-    return 0;
+    Function* initializer = find_method("init");
+    if (!initializer) return 0;
+    else return initializer->arity();
 }
 
 Function* Klass::find_method(const std::string& name)
@@ -473,7 +490,7 @@ nullable_literal ClassInstance::get(const Token& name)
         return fields[name.lexeme];
     
     Function* method = klass->find_method(name.lexeme);
-    if (method) return method;
+    if (method) return method->bind(this);
     
     throw RuntimeError(name, "Undefined property '" + name.lexeme + "'");
 }
