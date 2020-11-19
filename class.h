@@ -8,8 +8,9 @@
 class Klass : public Callable
 {
 public:
-    Klass(const std::string& name_, std::unordered_map<std::string, Function*>& methods_) :
+    Klass(const std::string& name_, Klass* super_, std::unordered_map<std::string, Function*>& methods_) :
         name(name_),
+        superclass(super_),
         methods(std::move(methods_))
     {}
     
@@ -28,6 +29,7 @@ public:
 private:
     std::string name;
     std::unordered_map<std::string, Function*> methods;
+    Klass* superclass;
 };
 
 class ClassInstance : public ClassInstanceInterface

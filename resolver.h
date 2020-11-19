@@ -23,7 +23,8 @@ private:
     enum class ClassType
     {
         NONE,
-        CLASS
+        CLASS,
+        SUBCLASS
     } currentClass;
 
 public:
@@ -90,7 +91,20 @@ private:
                 currentClass = ClassType::CLASS;
                 declare(stmt->name);
                 define(stmt->name);
+                if (stmt->superclass)
+                {
+                    if (stmt->name.lexeme == stmt->superclass->name.lexeme)
+                        error(stmt->superclass->name, "A class can't inherit from itself");
+                    resolve(stmt->superclass);
+                    
+                    currentClass = ClassType::SUBCLASS;
+                    
+                    begin_scope();
+                    scopes.back()["super"] = true;
+                    
+                }
                 begin_scope();
+                
                 scopes.back()["this"] = true;
                 for(auto& method: stmt->methods)
                 {
@@ -101,6 +115,9 @@ private:
                     resolveFunction(fn, declaration);
                 }
                 end_scope();
+                
+                if (stmt->superclass)
+                    end_scope();
                 currentClass = enclosingClass;
             },
             [this](const ReturnStmt* stmt)
@@ -214,6 +231,19 @@ private:
                     error(expr->keyword, "Can't use 'this' outside of a class");
                     return;
                 }
+                resolveLocal(expr, expr->keyword);
+            },
+            [this](const Super* expr)
+            {
+                if (currentClass == ClassType::NONE)
+                {
+                    error(expr->keyword, "Can't use 'super' outside of a class.");
+                }
+                else if (currentClass != ClassType::SUBCLASS)
+                {
+                    error(expr->keyword, "Can't use 'super' in a class with no superclass.");
+                }
+                
                 resolveLocal(expr, expr->keyword);
             },
             [this](const Variable* expr)

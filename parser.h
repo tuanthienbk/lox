@@ -104,6 +104,12 @@ private:
     Stmt class_declaration()
     {
         Token name = consume(IDENTIFIER, "Expect class name");
+        Variable* superclass = NULL;
+        if (match({LESS}))
+        {
+            consume(IDENTIFIER, "Expect super class name.");
+            superclass = new Variable(previous());
+        }
         consume(LEFT_BRACE, "Expect '{' before class body");
         std::vector<Stmt> methods;
         while (!check(RIGHT_BRACE) && !is_at_end())
@@ -111,7 +117,7 @@ private:
             methods.push_back(function("method"));
         }
         consume(RIGHT_BRACE, "Expect '}' after class body");
-        return new ClassStmt(name, methods);
+        return new ClassStmt(name, superclass, methods);
     }
     
     Stmt function(const std::string& kind)
@@ -439,6 +445,14 @@ private:
         if (match({NUMBER, STRING}))
         {
           return new Literal(previous().literal);
+        }
+        
+        if (match({SUPER}))
+        {
+            Token kw = previous();
+            consume(DOT, "Expect '.' after super.");
+            Token method = consume(IDENTIFIER, "Expect superclass method name.");
+            return new Super(kw, method);
         }
         
         if (match({THIS}))

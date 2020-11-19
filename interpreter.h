@@ -139,8 +139,29 @@ private:
             },
             [this](const ClassStmt* stmt)
             {
+                Klass* superclass = NULL;
+                if (stmt->superclass)
+                {
+                    nullable_literal value = evaluate(stmt->superclass);
+                    
+                    if (auto ptr = std::get_if<Callable*>(&value.value()))
+                    {
+                        superclass = static_cast<Klass*>(*ptr);
+                    }
+                    if (!superclass)
+                    {
+                        throw RuntimeError(stmt->superclass->name, "Super class must be a class");
+                    }
+                }
                 m_environment->define(stmt->name.lexeme, std::nullopt);
                 
+                //push another environment for "super" so that functions inside class can recognize the "super"
+                std::shared_ptr<Environment> current_env = m_environment;
+                if (superclass)
+                {
+                    m_environment = std::make_shared<Environment>(m_environment);
+                    m_environment->define("super", superclass);
+                }
                 std::unordered_map<std::string, Function*> methods;
                 for (auto& method : stmt->methods)
                 {
@@ -149,7 +170,11 @@ private:
                     methods[functionStmt->name.lexeme] = function;
                 }
 
-                Klass* klass = new Klass(stmt->name.lexeme, methods);
+                Klass* klass = new Klass(stmt->name.lexeme, superclass, methods);
+                
+                // pop the current environment, so that "super" is not binded to a particular instance
+                if (superclass)
+                    m_environment = current_env;
                 
                 m_environment->assign(stmt->name, klass);
             },
@@ -381,6 +406,21 @@ private:
             {
                 return lookup_variable(expr->keyword, expr);
             },
+            [this](const Super* expr) -> nullable_literal
+            {
+                int distance = m_locals[reinterpret_cast<size_t>(expr)];
+                nullable_literal superclass_value = m_environment->get_at(distance, "super");
+                Klass* superclass = static_cast<Klass*>(std::get<Callable*>(superclass_value.value()));
+                
+                nullable_literal instanceObj_value = m_environment->get_at(distance - 1, "this");
+                ClassInstance* instance = static_cast<ClassInstance*>(std::get<ClassInstanceInterface*>(instanceObj_value.value()));
+                
+                Function* method = superclass->find_method(expr->method.lexeme);
+                if (!method)
+                    throw RuntimeError(expr->method, "Undefined property '" + expr->method.lexeme + "'");
+                else
+                    return method->bind(instance);
+            },
             [this](const std::nullptr_t expr) -> nullable_literal
             {
                 return std::nullopt;
@@ -473,6 +513,8 @@ Function* Klass::find_method(const std::string& name)
 {
     if (methods.find(name) != methods.end())
         return methods[name];
+    else if (superclass)
+        return superclass->find_method(name);
     else
         return NULL;
 }

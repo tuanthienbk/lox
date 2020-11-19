@@ -12,6 +12,7 @@ struct Logical;
 struct Unary;
 struct Variable;
 struct This;
+struct Super;
 
 using Expr = std::variant
 <
@@ -26,6 +27,7 @@ using Expr = std::variant
     Unary*,
     Variable*,
     This*,
+    Super*,
     std::nullptr_t
 >;
 
@@ -119,6 +121,13 @@ struct This
     Token keyword;
 };
 
+struct Super
+{
+    Super(Token kw, Token mt): keyword(kw), method(mt) {}
+    Token keyword;
+    Token method;
+};
+
 // helper type for the visitor #4
 template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 // explicit deduction guide (not needed as of C++20)
@@ -181,6 +190,10 @@ void deleteExpr(Expr expr)
             delete expr;
         },
         [](const This* expr)
+        {
+            delete expr;
+        },
+        [](const Super* expr)
         {
             delete expr;
         },

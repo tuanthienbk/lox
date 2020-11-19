@@ -81,11 +81,14 @@ struct FunctionStmt
 
 struct ClassStmt
 {
-    ClassStmt(Token name_, std::vector<Stmt>& methods_) :
-        name(name_), methods(std::move(methods_))
+    ClassStmt(Token name_, Variable* super_, std::vector<Stmt>& methods_) :
+        name(name_),
+        superclass(super_),
+        methods(std::move(methods_))
     {}
     
     Token name;
+    Variable* superclass;
     std::vector<Stmt> methods;
 };
 
@@ -149,6 +152,8 @@ void deleteStmt(Stmt statement)
         },
         [](const ClassStmt* stmt)
         {
+            if (stmt->superclass)
+                deleteExpr(stmt->superclass);
             for(const Stmt& statement: stmt->methods)
                 deleteStmt(statement);
             delete stmt;
