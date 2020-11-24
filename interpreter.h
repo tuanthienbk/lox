@@ -155,9 +155,11 @@ private:
                 }
                 m_environment->define(stmt->name.lexeme, std::nullopt);
                 
-                //push another environment for "super" so that functions inside class can recognize the "super"
+                // if there is at least one method, we need to bind "super", otherwise we're good
                 std::shared_ptr<Environment> current_env = m_environment;
-                if (superclass)
+                bool shouldBindSuper = superclass && !stmt->methods.empty();
+                //push another environment for "super" so that functions inside class can recognize the "super"
+                if (shouldBindSuper)
                 {
                     m_environment = std::make_shared<Environment>(m_environment);
                     m_environment->define("super", superclass);
@@ -169,13 +171,13 @@ private:
                     Function* function = new Function(functionStmt, m_environment, functionStmt->name.lexeme == "init");
                     methods[functionStmt->name.lexeme] = function;
                 }
-
-                Klass* klass = new Klass(stmt->name.lexeme, superclass, methods);
-                
                 // pop the current environment, so that "super" is not binded to a particular instance
-                if (superclass)
+                if (shouldBindSuper)
+                {
                     m_environment = current_env;
-                
+                }
+                // create a new class and register to the environment
+                Klass* klass = new Klass(stmt->name.lexeme, superclass, methods);
                 m_environment->assign(stmt->name, klass);
             },
             [this](const ReturnStmt* stmt)
