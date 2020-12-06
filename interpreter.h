@@ -155,26 +155,28 @@ private:
                 }
                 m_environment->define(stmt->name.lexeme, std::nullopt);
                 
-                // if there is at least one method, we need to bind "super", otherwise we're good
-                std::shared_ptr<Environment> current_env = m_environment;
-                bool shouldBindSuper = superclass && !stmt->methods.empty();
-                //push another environment for "super" so that functions inside class can recognize the "super"
-                if (shouldBindSuper)
-                {
-                    m_environment = std::make_shared<Environment>(m_environment);
-                    m_environment->define("super", superclass);
-                }
                 std::unordered_map<std::string, Function*> methods;
-                for (auto& method : stmt->methods)
+                // if there is at least one method, we need to bind "super", otherwise we're good
+                if (!stmt->methods.empty())
                 {
-                    FunctionStmt* functionStmt = std::get<FunctionStmt*>(method);
-                    Function* function = new Function(functionStmt, m_environment, functionStmt->name.lexeme == "init");
-                    methods[functionStmt->name.lexeme] = function;
-                }
-                // pop the current environment, so that "super" is not binded to a particular instance
-                if (shouldBindSuper)
-                {
-                    m_environment = current_env;
+                    //push another environment for "super" so that functions inside class can recognize the "super"
+                    std::shared_ptr<Environment> current_env = m_environment;
+                    if (superclass)
+                    {
+                        m_environment = std::make_shared<Environment>(m_environment);
+                        m_environment->define("super", superclass);
+                    }
+                    for (auto& method : stmt->methods)
+                    {
+                        FunctionStmt* functionStmt = std::get<FunctionStmt*>(method);
+                        Function* function = new Function(functionStmt, m_environment, functionStmt->name.lexeme == "init");
+                        methods[functionStmt->name.lexeme] = function;
+                    }
+                    // pop the current environment, so that "super" is not binded to a particular instance
+                    if (superclass)
+                    {
+                        m_environment = current_env;
+                    }
                 }
                 // create a new class and register to the environment
                 Klass* klass = new Klass(stmt->name.lexeme, superclass, methods);

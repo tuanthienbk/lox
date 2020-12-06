@@ -34,3 +34,23 @@ set(SOURCES
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+
+set(CLOX_HEADERS
+    clox/common.h
+    clox/chunk.h
+    clox/memory.h
+    clox/value.h
+    clox/debug.h
+    clox/vm.h
+)
+
+set(CLOX_SOURCES
+    clox/chunk.cpp
+    clox/memory.cpp
+    clox/value.cpp
+    clox/debug.cpp
+    clox/vm.cpp
+    clox/main.cpp
+)
+
+add_executable(clox ${CLOX_SOURCES} ${CLOX_HEADERS})
