@@ -42,6 +42,8 @@ set(CLOX_HEADERS
     clox/value.h
     clox/debug.h
     clox/vm.h
+    clox/compiler.h
+    clox/scanner.h
 )
 
 set(CLOX_SOURCES
@@ -50,6 +52,8 @@ set(CLOX_SOURCES
     clox/value.cpp
     clox/debug.cpp
     clox/vm.cpp
+    clox/compiler.cpp
+    clox/scanner.cpp
     clox/main.cpp
 )
 
