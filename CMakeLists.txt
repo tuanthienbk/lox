@@ -40,6 +40,7 @@ set(CLOX_HEADERS
     clox/chunk.h
     clox/memory.h
     clox/value.h
+    clox/table.h
     clox/object.h
     clox/debug.h
     clox/vm.h
@@ -51,6 +52,7 @@ set(CLOX_SOURCES
     clox/chunk.cpp
     clox/memory.cpp
     clox/value.cpp
+    clox/table.cpp
     clox/object.cpp
     clox/debug.cpp
     clox/vm.cpp
