@@ -66,6 +66,16 @@ ObjString* takeString(char* chars, int length)
     return allocateString(chars, length, hash);
 }
 
+static void printFunction(ObjFunction* function)
+{
+    if (function->name == NULL)
+    {
+        printf("<script>");
+        return;
+    }
+    printf("<fn %s>", function->name->chars);
+}
+
 void printObject(Value value)
 {
     switch (OBJ_TYPE(value))
@@ -73,5 +83,26 @@ void printObject(Value value)
         case OBJ_STRING:
             printf("%s", AS_CSTRING(value));
             break;
+        case OBJ_FUNCTION:
+            printFunction(AS_FUNCTION(value));
+            break;
     }
+}
+
+
+ObjFunction* newFunction()
+{
+    ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
+
+    function->arity = 0;
+    function->name = NULL;
+    initChunk(&function->chunk);
+    return function;
+}
+
+ObjNative* newNative(NativeFn function)
+{
+    ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
+    native->function = function;
+    return native;
 }

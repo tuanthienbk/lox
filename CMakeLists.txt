@@ -8,12 +8,6 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(Boost 1.72.0)
-
-if(Boost_FOUND)
-  include_directories(${Boost_INCLUDE_DIRS})
-endif()
-
 set(HEADERS
     environment.h
     error.h
@@ -33,7 +27,7 @@ set(SOURCES
 	main.cpp
 )
 
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+add_executable(jlox ${SOURCES} ${HEADERS})
 
 set(CLOX_HEADERS
     clox/common.h

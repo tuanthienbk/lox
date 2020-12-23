@@ -3,7 +3,7 @@
 #include "environment.h"
 #include "statement.h"
 
-#include <chrono>
+#include <time.h>
 
 class ClassInstance;
 
@@ -32,7 +32,7 @@ class ClockGlobalFcn : public Callable
 public:
     nullable_literal call(Interpreter* interpreter, std::vector<nullable_literal>& arguments) override
     {
-        return (double)std::chrono::steady_clock::now().time_since_epoch().count();
+        return (double)clock() / CLOCKS_PER_SEC;
     }
     
     std::string to_string() override
