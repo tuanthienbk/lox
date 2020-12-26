@@ -9,7 +9,7 @@
 
 typedef struct
 {
-    ObjFunction* function;
+    ObjClosure* closure;
     uint8_t* ip;
     Value* slots;
 } CallFrame;
@@ -22,6 +22,7 @@ typedef struct
     Table globals;
     Obj* objects;
     CallFrame frames[FRAMES_MAX];
+    ObjUpvalue* openUpvalues;
     int frameCount;
 } VM;
 

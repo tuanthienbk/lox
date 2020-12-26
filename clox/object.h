@@ -12,10 +12,14 @@
 #define AS_FUNCTION(value)     ((ObjFunction*)AS_OBJ(value))
 #define IS_NATIVE(value)       isObjType(value, OBJ_NATIVE)
 #define AS_NATIVE(value)       (((ObjNative*)AS_OBJ(value))->function)
+#define IS_CLOSURE(value)      isObjType(value, OBJ_CLOSURE)
+#define AS_CLOSURE(value)      ((ObjClosure*)AS_OBJ(value))
 
 typedef enum {
     OBJ_STRING,
     OBJ_FUNCTION,
+    OBJ_CLOSURE,
+    OBJ_UPVALUE,
     OBJ_NATIVE
 } ObjType;
 
@@ -45,6 +49,7 @@ static inline bool isObjType(Value value, ObjType type)
 typedef struct
 {
     Obj obj;
+    int upvalueCount;
     int arity;
     Chunk chunk;
     ObjString* name;
@@ -61,5 +66,25 @@ typedef struct
 } ObjNative;
 
 ObjNative* newNative(NativeFn function);
+
+typedef struct ObjUpvalue
+{
+    Obj obj;
+    Value* location;
+    struct ObjUpvalue* next;
+    Value closed;
+} ObjUpvalue;
+
+ObjUpvalue* newUpvalue(Value* slot);
+
+typedef struct
+{
+    Obj obj;
+    ObjFunction* function;
+    ObjUpvalue** upvalues;
+    int upvalueCount;
+} ObjClosure;
+
+ObjClosure* newClosure(ObjFunction* function);
 
 
