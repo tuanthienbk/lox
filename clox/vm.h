@@ -24,6 +24,11 @@ typedef struct
     CallFrame frames[FRAMES_MAX];
     ObjUpvalue* openUpvalues;
     int frameCount;
+    int grayCount;
+    int grayCapacity;
+    Obj** grayStack;
+    size_t bytesAllocated;
+    size_t nextGC;
 } VM;
 
 typedef enum

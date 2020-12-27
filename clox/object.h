@@ -14,17 +14,21 @@
 #define AS_NATIVE(value)       (((ObjNative*)AS_OBJ(value))->function)
 #define IS_CLOSURE(value)      isObjType(value, OBJ_CLOSURE)
 #define AS_CLOSURE(value)      ((ObjClosure*)AS_OBJ(value))
+#define IS_CLASS(value)        isObjType(value, OBJ_CLASS)
+#define AS_CLASS(value)        ((ObjClass*)AS_OBJ(value))
 
 typedef enum {
     OBJ_STRING,
     OBJ_FUNCTION,
     OBJ_CLOSURE,
     OBJ_UPVALUE,
+    OBJ_CLASS,
     OBJ_NATIVE
 } ObjType;
 
 struct Obj {
     ObjType type;
+    bool isMarked;
     struct Obj* next;
 };
 
@@ -86,5 +90,14 @@ typedef struct
 } ObjClosure;
 
 ObjClosure* newClosure(ObjFunction* function);
+
+typedef struct
+{
+    Obj obj;
+    ObjString* name;
+} ObjClass;
+
+ObjClass* newClass(ObjString* name);
+
 
 
