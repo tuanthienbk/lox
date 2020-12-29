@@ -3,6 +3,7 @@
 #include "common.h"
 #include "value.h"
 #include "chunk.h"
+#include "table.h"
 
 #define OBJ_TYPE(value)        (AS_OBJ(value)->type)
 #define IS_STRING(value)       isObjType(value, OBJ_STRING)
@@ -16,6 +17,10 @@
 #define AS_CLOSURE(value)      ((ObjClosure*)AS_OBJ(value))
 #define IS_CLASS(value)        isObjType(value, OBJ_CLASS)
 #define AS_CLASS(value)        ((ObjClass*)AS_OBJ(value))
+#define IS_INSTANCE(value)     isObjType(value, OBJ_INSTANCE)
+#define AS_INSTANCE(value)     ((ObjInstance*)AS_OBJ(value))
+#define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
+#define AS_BOUND_METHOD(value) ((ObjBoundMethod*)AS_OBJ(value))
 
 typedef enum {
     OBJ_STRING,
@@ -23,6 +28,8 @@ typedef enum {
     OBJ_CLOSURE,
     OBJ_UPVALUE,
     OBJ_CLASS,
+    OBJ_INSTANCE,
+    OBJ_BOUND_METHOD,
     OBJ_NATIVE
 } ObjType;
 
@@ -95,9 +102,28 @@ typedef struct
 {
     Obj obj;
     ObjString* name;
+    Table methods;
 } ObjClass;
 
 ObjClass* newClass(ObjString* name);
 
+typedef struct
+{
+    Obj obj;
+    ObjClass* klass;
+    Table fields;
+} ObjInstance;
+
+
+ObjInstance* newInstance(ObjClass* klass);
+
+typedef struct
+{
+    Obj obj;
+    Value receiver;
+    ObjClosure* method;
+} ObjBoundMethod;
+
+ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 
 
