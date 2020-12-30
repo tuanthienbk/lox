@@ -317,7 +317,7 @@ static InterpretResult run()
       push(valueType(a op b)); \
     } while (false)
     
-    for (;;)
+    for (int iter = 0;;++iter)
     {
 #ifdef DEBUG_TRACE_EXECUTION
         printf("            ");
@@ -328,7 +328,7 @@ static InterpretResult run()
             printf(" ]");
         }
         printf("\n");
-        disassembleInstruction(&frame->closure->function->chunk, (int)(frame->ip - frame->function->chunk.code));
+        disassembleInstruction(&frame->closure->function->chunk, (int)(frame->ip - frame->closure->function->chunk.code));
 #endif
         uint8_t instruction;
         switch (instruction = READ_BYTE())
@@ -570,6 +570,41 @@ static InterpretResult run()
                 ObjString* method = READ_STRING();
                 int argCount = READ_BYTE();
                 if (!invoke(method, argCount))
+                {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                frame = &vm.frames[vm.frameCount - 1];
+                break;
+            }
+            case OP_INHERIT:
+            {
+                Value superclass = peek(1);
+                if (!IS_CLASS(superclass))
+                {
+                    runtimeError("Superclass must be a class.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjClass* subclass = AS_CLASS(peek(0));
+                tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+                pop(); // Subclass.
+                break;
+            }
+            case OP_GET_SUPER:
+            {
+                ObjString* name = READ_STRING();
+                ObjClass* superclass = AS_CLASS(pop());
+                if (!bindMethod(superclass, name))
+                {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_SUPER_INVOKE:
+            {
+                ObjString* method = READ_STRING();
+                int argCount = READ_BYTE();
+                ObjClass* superclass = AS_CLASS(pop());
+                if (!invokeFromClass(superclass, method, argCount))
                 {
                     return INTERPRET_RUNTIME_ERROR;
                 }
